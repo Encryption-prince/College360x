@@ -1,10 +1,15 @@
 // The exported code uses Tailwind CSS. Install Tailwind CSS in your dev environment to ensure all styles work.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const App = () => {
+  // Backend integration state
+  const [studyMaterials, setStudyMaterials] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   // Study material data with pricing
-  const studyMaterials = [
+  const [studyMaterialsData, setStudyMaterialsData] = useState([
     {
       id: 1,
       title: "DBMS Unit 2 - Normalization",
@@ -140,7 +145,7 @@ const App = () => {
       price: 110,
       driveLink: "https://drive.google.com/file/d/9yza567/view"
     }
-  ];
+  ]);
 
   // State for search, filters and preview
   const [searchTerm, setSearchTerm] = useState("");
@@ -150,10 +155,10 @@ const App = () => {
   const [activeTag, setActiveTag] = useState("");
   const [previewItem, setPreviewItem] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
-  
+
   // State for section toggle
   const [activeSection, setActiveSection] = useState("browse"); // "browse" or "upload"
-  
+
   // State for upload form
   const [uploadForm, setUploadForm] = useState({
     title: "",
@@ -172,16 +177,49 @@ const App = () => {
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
+  // Fetch study materials from backend
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch('http://localhost:8080/api/study-materials')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch study materials');
+        return res.json();
+      })
+      .then(data => {
+        // Map backend fields to frontend fields
+        setStudyMaterials(Array.isArray(data) ? data.map(m => ({
+          id: m.id,
+          title: m.title,
+          subject: m.subject,
+          semester: m.semester,
+          fileType: m.fileType,
+          uploadedBy: '', // Not available in backend
+          uploadDate: m.uploadedAt ? new Date(m.uploadedAt).toLocaleDateString() : '',
+          downloads: 0, // Not available in backend
+          trending: false, // Not available in backend
+          favorite: false, // Not available in backend
+          color: 'bg-blue-100', // Default color
+          price: m.price,
+          driveLink: m.url,
+          description: m.description,
+        })) : []);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
   // Filter study materials based on search term and filters
   const filteredMaterials = studyMaterials.filter(material => {
     const matchesSearch = material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          material.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          material.uploadedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      material.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (material.uploadedBy || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSubject = subjectFilter === "" || material.subject === subjectFilter;
     const matchesSemester = semesterFilter === "" || material.semester === semesterFilter;
     const matchesFileType = fileTypeFilter === "" || material.fileType === fileTypeFilter;
-    
     let matchesTag = true;
     if (activeTag === "#ExamNotes") {
       matchesTag = material.title.includes("Notes") || material.title.includes("notes");
@@ -190,7 +228,6 @@ const App = () => {
     } else if (activeTag === "#AssignmentHelp") {
       matchesTag = material.title.includes("Assignment") || material.title.includes("Help");
     }
-    
     return matchesSearch && matchesSubject && matchesSemester && matchesFileType && matchesTag;
   });
 
@@ -203,13 +240,13 @@ const App = () => {
   // Handle payment processing
   const handlePayment = async () => {
     setIsProcessingPayment(true);
-    
+
     // Simulate payment processing
     setTimeout(() => {
       setIsProcessingPayment(false);
       setShowPaymentModal(false);
       setSelectedMaterial(null);
-      
+
       // Simulate successful download
       setDownloadingId(selectedMaterial.id);
       setTimeout(() => {
@@ -223,7 +260,7 @@ const App = () => {
   const handleDriveLinkChange = (e) => {
     const link = e.target.value;
     let fileType = "PDF";
-    
+
     if (link.includes(".doc") || link.includes(".docx")) {
       fileType = "DOC";
     } else if (link.includes(".ppt") || link.includes(".pptx")) {
@@ -231,7 +268,7 @@ const App = () => {
     } else if (link.includes(".pdf")) {
       fileType = "PDF";
     }
-    
+
     setUploadForm(prev => ({
       ...prev,
       driveLink: link,
@@ -246,34 +283,76 @@ const App = () => {
       alert("Please provide a drive link");
       return;
     }
-    
     if (!uploadForm.price || uploadForm.price <= 0) {
       alert("Please set a valid price");
       return;
     }
-    
     setIsUploading(true);
-    
-    // Simulate upload process
-    setTimeout(() => {
-      setIsUploading(false);
-      alert("Document uploaded successfully!");
-      setUploadForm({
-        title: "",
-        subject: "",
-        semester: "",
-        fileType: "PDF",
-        description: "",
-        driveLink: "",
-        price: ""
+    // Compose payload for backend
+    const payload = {
+      title: uploadForm.title,
+      url: uploadForm.driveLink,
+      subject: uploadForm.subject,
+      semester: uploadForm.semester,
+      fileType: uploadForm.fileType,
+      price: parseFloat(uploadForm.price),
+      description: uploadForm.description,
+      // uploadedAt: new Date().toISOString(), // Let backend set
+    };
+    try {
+      const res = await fetch('http://localhost:8080/api/study-materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-    }, 2000);
+      if (res.ok) {
+        alert("Document uploaded successfully!");
+        setUploadForm({
+          title: "",
+          subject: "",
+          semester: "",
+          fileType: "PDF",
+          description: "",
+          driveLink: "",
+          price: ""
+        });
+        // Refresh materials
+        fetch('http://localhost:8080/api/study-materials')
+          .then(res => res.json())
+          .then(data => setStudyMaterials(Array.isArray(data) ? data.map(m => ({
+            id: m.id,
+            title: m.title,
+            subject: m.subject,
+            semester: m.semester,
+            fileType: m.fileType,
+            uploadedBy: '',
+            uploadDate: m.uploadedAt ? new Date(m.uploadedAt).toLocaleDateString() : '',
+            downloads: 0,
+            trending: false,
+            favorite: false,
+            color: 'bg-blue-100',
+            price: m.price,
+            driveLink: m.url,
+            description: m.description,
+          })) : []));
+      } else {
+        alert("Failed to upload document");
+      }
+    } catch (err) {
+      alert("Network error: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Get unique subjects, semesters and file types for filters
   const subjects = Array.from(new Set(studyMaterials.map(material => material.subject)));
   const semesters = Array.from(new Set(studyMaterials.map(material => material.semester)));
   const fileTypes = Array.from(new Set(studyMaterials.map(material => material.fileType)));
+
+  // Show loading and error states
+  if (loading) return <div className="p-8 text-gray-500">Loading study materials...</div>;
+  if (error) return <div className="p-8 text-red-600">{error}</div>;
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -289,22 +368,20 @@ const App = () => {
         <div className="mb-8">
           <div className="flex bg-white rounded-lg p-1 shadow-sm">
             <button
-              className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
-                activeSection === "browse"
-                  ? "bg-blue-500 text-white shadow-sm"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-              }`}
+              className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${activeSection === "browse"
+                ? "bg-blue-500 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                }`}
               onClick={() => setActiveSection("browse")}
             >
               <i className="fas fa-search mr-2"></i>
               Browse & Download
             </button>
             <button
-              className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
-                activeSection === "upload"
-                  ? "bg-blue-500 text-white shadow-sm"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-              }`}
+              className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${activeSection === "upload"
+                ? "bg-blue-500 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                }`}
               onClick={() => setActiveSection("upload")}
             >
               <i className="fas fa-upload mr-2"></i>
@@ -385,11 +462,10 @@ const App = () => {
                 {["#ExamNotes", "#PreviousYear", "#AssignmentHelp"].map((tag) => (
                   <button
                     key={tag}
-                    className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap !rounded-button cursor-pointer ${
-                      activeTag === tag
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
+                    className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap !rounded-button cursor-pointer ${activeTag === tag
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
                     onClick={() => setActiveTag(activeTag === tag ? "" : tag)}
                   >
                     {tag}
@@ -433,7 +509,7 @@ const App = () => {
                   </div>
 
                   <h3 className="text-lg font-bold mb-2">{material.title}</h3>
-                  
+
                   <div className="flex items-center mb-3">
                     <span className="inline-block text-xs font-medium px-2 py-1 bg-white rounded-full mr-2">
                       {material.subject}
@@ -442,7 +518,7 @@ const App = () => {
                       {material.semester}
                     </span>
                   </div>
-                  
+
                   <div className="text-sm text-gray-600 mb-4">
                     <p>Uploaded by {material.uploadedBy}</p>
                     <p>{material.uploadDate}</p>
@@ -455,12 +531,11 @@ const App = () => {
                       <span className="text-lg font-bold text-green-600">₹{material.price}</span>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-between items-center">
                     <button
-                      className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center space-x-2 !rounded-button whitespace-nowrap cursor-pointer ${
-                        downloadingId === material.id ? "opacity-75" : ""
-                      }`}
+                      className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center space-x-2 !rounded-button whitespace-nowrap cursor-pointer ${downloadingId === material.id ? "opacity-75" : ""
+                        }`}
                       onClick={() => handleDownload(material)}
                       disabled={downloadingId === material.id}
                     >
@@ -494,7 +569,7 @@ const App = () => {
           <div className="max-w-2xl mx-auto">
             <div className="bg-white rounded-lg shadow-sm p-8">
               <h2 className="text-2xl font-bold mb-6">📤 Upload Study Material</h2>
-              
+
               <form onSubmit={handleUpload} className="space-y-6">
                 {/* Drive Link Input */}
                 <div>
@@ -615,9 +690,8 @@ const App = () => {
                 {/* Upload Button */}
                 <button
                   type="submit"
-                  className={`w-full py-3 px-6 bg-blue-600 text-white rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${
-                    isUploading ? "opacity-75 cursor-not-allowed" : "hover:bg-blue-700"
-                  }`}
+                  className={`w-full py-3 px-6 bg-blue-600 text-white rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${isUploading ? "opacity-75 cursor-not-allowed" : "hover:bg-blue-700"
+                    }`}
                   disabled={isUploading}
                 >
                   {isUploading ? (
@@ -650,7 +724,7 @@ const App = () => {
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
-              
+
               <div className="mb-6">
                 <div className="bg-gray-50 p-4 rounded-lg mb-4">
                   <h4 className="font-medium mb-2">{selectedMaterial.title}</h4>
@@ -660,7 +734,7 @@ const App = () => {
                     <span className="text-lg font-bold text-green-600">₹{selectedMaterial.price}</span>
                   </div>
                 </div>
-                
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Payment Method
@@ -702,7 +776,7 @@ const App = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
@@ -711,9 +785,8 @@ const App = () => {
                   Cancel
                 </button>
                 <button
-                  className={`flex-1 py-2 px-4 bg-green-600 text-white rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${
-                    isProcessingPayment ? "opacity-75 cursor-not-allowed" : "hover:bg-green-700"
-                  }`}
+                  className={`flex-1 py-2 px-4 bg-green-600 text-white rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 ${isProcessingPayment ? "opacity-75 cursor-not-allowed" : "hover:bg-green-700"
+                    }`}
                   onClick={handlePayment}
                   disabled={isProcessingPayment}
                 >
@@ -749,7 +822,7 @@ const App = () => {
                   <i className="fas fa-times text-xl"></i>
                 </button>
               </div>
-              
+
               <div className="bg-gray-100 p-8 rounded-lg mb-4 flex items-center justify-center">
                 <div className="text-center">
                   {(() => {
@@ -765,7 +838,7 @@ const App = () => {
                   <p className="text-gray-500">Preview not available. Purchase to access the full document.</p>
                 </div>
               </div>
-              
+
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <h4 className="font-medium mb-2">File Details</h4>
                 {(() => {
@@ -783,7 +856,7 @@ const App = () => {
                   );
                 })()}
               </div>
-              
+
               <div className="mt-6 flex justify-end">
                 <button
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center space-x-2 !rounded-button whitespace-nowrap cursor-pointer"
