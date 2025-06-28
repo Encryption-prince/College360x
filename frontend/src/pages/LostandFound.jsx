@@ -10,9 +10,8 @@ const App = () => {
     itemName: '',
     lastSeenLocation: '',
     description: '',
+    photoUrl: '',
   });
-  const [previewImage, setPreviewImage] = useState(null);
-  const fileInputRef = useRef(null);
 
   // Backend integration state
   const [items, setItems] = useState([]);
@@ -88,7 +87,7 @@ const App = () => {
       itemName: formData.itemName,
       location: formData.lastSeenLocation,
       description: formData.description,
-      photoUrl: '', // Not implemented
+      photoUrl: formData.photoUrl,
       reportedDate: new Date().toISOString().slice(0, 10),
       status: activeTab === 'lost' ? 'LOST' : 'FOUND',
       reporterContact: '', // Not implemented
@@ -105,8 +104,7 @@ const App = () => {
       if (res.ok) {
         setMessage({ type: 'success', text: 'Item reported successfully!' });
         setShowForm(false);
-        setFormData({ itemName: '', lastSeenLocation: '', description: '' });
-        setPreviewImage(null);
+        setFormData({ itemName: '', lastSeenLocation: '', description: '', photoUrl: '' });
         // Refresh items
         fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/lost-found')
           .then(res => res.json())
@@ -305,40 +303,15 @@ const App = () => {
                       </div>
 
                       <div className="mb-6">
-                        <label className="block text-sm text-gray-600 mb-1">Upload Photo</label>
-                        <div
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50"
-                        >
-                          {previewImage ? (
-                            <>
-                              <img src={previewImage} alt="Preview" className="max-h-40 mx-auto rounded" />
-                              <p className="text-sm text-gray-500 mt-2">Click to change image</p>
-                            </>
-                          ) : (
-                            <>
-                              <i className="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
-                              <p className="text-sm text-gray-500">Click to upload an image</p>
-                              <p className="text-xs text-gray-400">JPG, PNG or GIF (Max 5MB)</p>
-                            </>
-                          )}
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            className="hidden"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setPreviewImage(reader.result);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </div>
+                        <label className="block text-sm text-gray-600 mb-1">Image URL (Google Drive or other)</label>
+                        <input
+                          type="url"
+                          name="photoUrl"
+                          value={formData.photoUrl}
+                          onChange={e => setFormData({ ...formData, photoUrl: e.target.value })}
+                          className="w-full h-10 px-3 py-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="Paste image URL here (e.g., Google Drive link)"
+                        />
                       </div>
 
                       <button
