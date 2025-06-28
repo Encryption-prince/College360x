@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { HomeIcon, RocketLaunchIcon, BuildingLibraryIcon, CalendarDaysIcon, ExclamationTriangleIcon, UsersIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, RocketLaunchIcon, BuildingLibraryIcon, CalendarDaysIcon, ExclamationTriangleIcon, UsersIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon,  TrophyIcon, CubeIcon, FaceSmileIcon, PhotoIcon, BookOpenIcon} from '@heroicons/react/24/outline';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +26,7 @@ const navItems = [
     children: [
       { label: 'Browse Events', to: '/events' },
       { label: 'My Registrations', to: '/events/registrations' },
+      { label: 'Event Form', to: '/EventForm' },
     ],
   },
   {
@@ -45,6 +46,34 @@ const navItems = [
       { label: 'Join Group', to: '/studypartner/join' },
     ],
   },
+  {
+    label: 'Study Material',
+    icon: <BookOpenIcon className="w-6 h-6" />,
+    children: [
+      {label: 'Get Study Material', to: '/StudyMaterial'},
+      {label: 'Upload Material', to: '/StudyMaterial/Upload'},
+    ],
+  },
+  {
+    label: 'Leaderboard',
+    icon: <TrophyIcon className="w-6 h-6" />,
+    to: '/leaderboard',
+  },
+  {
+ label: 'Lost & Found',
+ icon: <CubeIcon className="w-6 h-6" />, 
+ to: '/LostandFound',
+},
+{
+ label: 'Meme Page',
+ icon: <FaceSmileIcon className="w-6 h-6" />,
+ to: '/MemePage',
+},
+{
+ label: 'Gallery',
+ icon: <PhotoIcon className="w-6 h-6" />,
+ to: '/gallery',
+},
 ];
 
 function Sidebar({ collapsed, setCollapsed }) {

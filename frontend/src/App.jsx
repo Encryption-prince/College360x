@@ -5,6 +5,7 @@ import Home from "./pages/Home.jsx";
 import Start from "./pages/Start.jsx";
 import Clubs from "./pages/Clubs.jsx";
 import Events from "./pages/Events.jsx";
+import EventForm from "./pages/EventForm.jsx";
 import FacultyLogin from "./pages/FacultyLogin.jsx";
 import FacultySignup from "./pages/FacultySignup.jsx";
 import Gallery from "./pages/Gallery.jsx";
@@ -55,6 +56,11 @@ function AppRoutes() {
       <Route path="/events" element={
         <ProtectedRoute>
           <MainLayout><Events /></MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/EventForm" element={
+        <ProtectedRoute>
+          <MainLayout><EventForm /></MainLayout>
         </ProtectedRoute>
       } />
       <Route path="/events/registrations" element={
