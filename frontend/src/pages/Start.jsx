@@ -14,6 +14,10 @@ import {
 import Noise from '../components/ui/Noise';
 import { ContainerScroll } from "../components/ui/container-scroll-animation";
 
+// Import dashboard images from assets
+// import dashboardMock1 from "./assets/news.jpg";
+// import dashboardMock2 from "./assets/calender.jpg";
+
 // Ellipse colors
 const ellipseColors = [
     '#ff2f2f', // red
@@ -89,7 +93,7 @@ function HeroScrollDemo() {
                 }
             >
                 <img
-                    src={"/linear.webp"}
+                    src={"/image.png"}
                     alt="hero"
                     height={720}
                     width={1400}
@@ -113,8 +117,8 @@ export default function NavbarDemo() {
             link: "#features",
         },
         {
-            name: "Pricing",
-            link: "#pricing",
+            name: "About",
+            link: "#about",
         },
         {
             name: "Contact",
@@ -410,46 +414,95 @@ const Home = () => {
     );
 };
 const Features = () => {
-    const features = [
-        {
-            icon: '📅',
-            title: 'Event Calendar',
-            desc: 'Stay updated with all upcoming college events and never miss out on what matters.'
-        },
-        {
-            icon: '🤝',
-            title: 'Clubs & Societies',
-            desc: 'Discover, join, and participate in various clubs and societies that match your interests.'
-        },
-        {
-            icon: '🔔',
-            title: 'Reminders & Notifications',
-            desc: 'Get timely reminders and notifications for events, deadlines, and club activities.'
-        },
-        {
-            icon: '🏆',
-            title: 'Leaderboards',
-            desc: 'See top participants and get recognized for your involvement in campus life.'
-        },
-    ];
     return (
         <section id="features" className="py-24 bg-gray-50 dark:bg-neutral-800 flex flex-col items-center text-center px-4 relative overflow-hidden">
             {/* Noise Layer */}
             <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
                 <Noise patternSize={250} patternScaleX={1} patternScaleY={1} patternRefreshInterval={2} patternAlpha={15} />
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900 dark:text-white relative z-10">Features</h2>
-            <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mb-10 relative z-10">
-                Everything you need to make the most of your college experience, all in one place.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 w-full max-w-5xl relative z-10">
-                {features.map((f, i) => (
-                    <div key={i} className="bg-white dark:bg-neutral-900 rounded-2xl shadow-md p-8 flex flex-col items-center">
-                        <div className="text-4xl mb-4">{f.icon}</div>
-                        <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">{f.title}</h3>
-                        <p className="text-gray-600 dark:text-gray-300 text-base">{f.desc}</p>
+            <div className="max-w-7xl w-full mx-auto flex flex-col md:flex-row items-center justify-between gap-12 relative z-10">
+                {/* Left: Feature Content */}
+                <div className="flex-1 flex flex-col items-start text-left">
+                    {/* Badge */}
+                    <span className="mb-4 px-4 py-1 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white text-sm font-semibold shadow-md">Campus Essentials</span>
+                    {/* Heading */}
+                    <h2 className="text-3xl md:text-5xl font-bold mb-4 text-gray-900 dark:text-white">Everything You Need, Organized in One Place</h2>
+                    {/* Subtext */}
+                    <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-10 max-w-xl">Simplify your college life. From events to academics, stay connected and in control with a single platform built for students.</p>
+                    {/* Feature Grid */}
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 w-full">
+                        <div className="flex items-start gap-4">
+                            <span className="text-2xl">🔍</span>
+                            <div>
+                                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Event Tracker</h3>
+                                <p className="text-gray-600 dark:text-gray-300 text-base">Stay on top of upcoming campus events, workshops, and festivals with an intuitive calendar view.</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-4">
+                            <span className="text-2xl">📚</span>
+                            <div>
+                                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Study Material Organizer</h3>
+                                <p className="text-gray-600 dark:text-gray-300 text-base">Access shared notes, lecture slides, and organize your own study resources in one space.</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-4">
+                            <span className="text-2xl">💬</span>
+                            <div>
+                                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Collaborative Clubs</h3>
+                                <p className="text-gray-600 dark:text-gray-300 text-base">Interact with fellow members through updates, polls, and shared files—all within your joined clubs.</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-4">
+                            <span className="text-2xl">🔔</span>
+                            <div>
+                                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Smart Alerts</h3>
+                                <p className="text-gray-600 dark:text-gray-300 text-base">Get instant alerts for club meetings, exam schedules, and important college updates.</p>
+                            </div>
+                        </div>
                     </div>
-                ))}
+                </div>
+                {/* Right: Visual Preview with Locomotive Scroll */}
+                <div className="flex-1 flex items-center justify-center w-full">
+                    <div className="relative w-full max-w-2xl h-[32rem] md:h-[38rem] bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl border-2 border-gray-200 dark:border-neutral-800 overflow-hidden p-8 flex flex-col justify-end">
+                        {/* Dashboard Illustration Placeholder */}
+                        {/* <div className="absolute top-4 left-4 flex gap-2 z-10">
+                            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">Upcoming Fest</span>
+                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Study Group</span>
+                            <span className="bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-semibold">Ragging Report</span>
+                        </div> */}
+                        {/* Locomotive Scroll Images */}
+                        <div className="relative w-full h-full flex items-center justify-center">
+                            <img
+                                src="https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=600&q=80"
+                                alt="Student Dashboard 1"
+                                className="absolute left-0 top-10 w-full rounded-xl shadow-xl border-4 border-white dark:border-neutral-900"
+                                data-scroll
+                                data-scroll-speed="2"
+                                style={{ zIndex: 5 }}
+                            />
+                            <img
+                                src="https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=600&q=80"
+                                alt="Student Dashboard 2"
+                                className="absolute right-0 bottom-10 w-2/3 rounded-xl shadow-xl z-10 border-4 border-white dark:border-neutral-900"
+                                data-scroll
+                                data-scroll-speed="-2"
+                                style={{ zIndex: 7 }}
+                            />
+                        </div>
+                        {/* Avatar Cluster */}
+                        {/* <div className="flex items-center mt-8 z-10">
+                            <div className="flex -space-x-2">
+                                <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="avatar" className="w-8 h-8 rounded-full border-2 border-white dark:border-neutral-900" />
+                                <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="avatar" className="w-8 h-8 rounded-full border-2 border-white dark:border-neutral-900" />
+                                <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="avatar" className="w-8 h-8 rounded-full border-2 border-white dark:border-neutral-900" />
+                                <span className="w-8 h-8 flex items-center justify-center bg-gray-200 dark:bg-neutral-800 rounded-full border-2 border-white dark:border-neutral-900 text-xs font-semibold text-gray-700 dark:text-gray-200">+5</span>
+                            </div>
+                            <span className="ml-3 text-gray-600 dark:text-gray-300 text-sm">Collaborating now</span>
+                        </div> */}
+                        {/* UI Mockup Illustration Placeholder */}
+                        {/* <div className="absolute bottom-0 right-0 w-2/3 h-2/3 bg-gradient-to-tr from-blue-100 via-purple-100 to-pink-100 dark:from-blue-900 dark:via-purple-900 dark:to-pink-900 rounded-tl-3xl opacity-40 pointer-events-none" /> */}
+                    </div>
+                </div>
             </div>
         </section>
     );
