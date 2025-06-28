@@ -93,7 +93,7 @@ function HeroScrollDemo() {
                 }
             >
                 <img
-                    src={"../pages/image.png"}
+                    src={"/image.png"}
                     alt="hero"
                     height={720}
                     width={1400}
