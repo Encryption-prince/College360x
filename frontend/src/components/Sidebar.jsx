@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { HomeIcon, RocketLaunchIcon, BuildingLibraryIcon, CalendarDaysIcon, ExclamationTriangleIcon, UsersIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   {

@@ -18,7 +18,7 @@ import StudentSignup from "./pages/StudentSignup.jsx";
 import StudyMaterial from "./pages/StudyMaterial.jsx";
 import StudyPartner from "./pages/StudyPartner.jsx";
 import ProtectedRoute from "./ProtectedRoute";
-import { AuthProvider, useAuth } from "./components/context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 function AppRoutes() {
   const { isLoggedIn } = useAuth();
