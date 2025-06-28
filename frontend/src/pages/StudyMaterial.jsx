@@ -181,7 +181,7 @@ const App = () => {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch('http://localhost:8080/api/study-materials')
+    fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/study-materials')
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch study materials');
         return res.json();
@@ -300,7 +300,7 @@ const App = () => {
       // uploadedAt: new Date().toISOString(), // Let backend set
     };
     try {
-      const res = await fetch('http://localhost:8080/api/study-materials', {
+      const res = await fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/study-materials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -317,7 +317,7 @@ const App = () => {
           price: ""
         });
         // Refresh materials
-        fetch('http://localhost:8080/api/study-materials')
+        fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/study-materials')
           .then(res => res.json())
           .then(data => setStudyMaterials(Array.isArray(data) ? data.map(m => ({
             id: m.id,

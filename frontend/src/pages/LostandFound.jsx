@@ -24,7 +24,7 @@ const App = () => {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch('http://localhost:8080/api/lost-found')
+    fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/lost-found')
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch items');
         return res.json();
@@ -96,7 +96,7 @@ const App = () => {
       type: '', // Not implemented
     };
     try {
-      const res = await fetch('http://localhost:8080/api/lost-found', {
+      const res = await fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/lost-found', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -108,7 +108,7 @@ const App = () => {
         setFormData({ itemName: '', lastSeenLocation: '', description: '' });
         setPreviewImage(null);
         // Refresh items
-        fetch('http://localhost:8080/api/lost-found')
+        fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/lost-found')
           .then(res => res.json())
           .then(data => setItems(Array.isArray(data) ? data : []));
       } else {

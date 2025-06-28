@@ -74,7 +74,7 @@ const RaggingReport = () => {
             evidences: [] // File upload not implemented
         };
         try {
-            const res = await fetch('http://localhost:8080/api/ragging-reports', {
+            const res = await fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -413,7 +413,7 @@ export function RaggingHistoryPage() {
     useEffect(() => {
         setLoading(true);
         setError(null);
-        fetch('http://localhost:8080/api/ragging-reports')
+        fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports')
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch reports');
                 return res.json();
@@ -490,7 +490,7 @@ export function RaggingHistoryPage() {
     const updateReportStatus = async (id, newStatus) => {
         setStatusMessage(null);
         try {
-            const res = await fetch(`http://localhost:8080/api/ragging-reports/${id}/status?newStatus=${encodeURIComponent(newStatus)}`, {
+            const res = await fetch(`https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports/${id}/status?newStatus=${encodeURIComponent(newStatus)}`, {
                 method: 'PUT',
             });
             const data = await res.json();
