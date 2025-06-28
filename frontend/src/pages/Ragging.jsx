@@ -24,7 +24,7 @@ const RaggingReport = () => {
         status: 'PENDING',
         involvedPersons: [{ ...initialPerson }],
         witnesses: [{ ...initialWitness }],
-        evidences: [] // File upload not implemented yet
+        evidences: [''] // Evidence URLs as strings
     });
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState(null);
@@ -32,6 +32,7 @@ const RaggingReport = () => {
     // Handlers for dynamic fields
     const addPerson = () => setForm(f => ({ ...f, involvedPersons: [...f.involvedPersons, { ...initialPerson }] }));
     const addWitness = () => setForm(f => ({ ...f, witnesses: [...f.witnesses, { ...initialWitness }] }));
+    const addEvidence = () => setForm(f => ({ ...f, evidences: [...f.evidences, ''] }));
 
     // Handlers for input changes
     const handleChange = (e) => {
@@ -50,6 +51,13 @@ const RaggingReport = () => {
             const updated = [...f.witnesses];
             updated[idx][field] = value;
             return { ...f, witnesses: updated };
+        });
+    };
+    const handleEvidenceChange = (idx, value) => {
+        setForm(f => {
+            const updated = [...f.evidences];
+            updated[idx] = value;
+            return { ...f, evidences: updated };
         });
     };
 
@@ -71,7 +79,7 @@ const RaggingReport = () => {
                 contactInfo: w.contactInfo,
                 isAnonymous: w.isAnonymous
             })),
-            evidences: [] // File upload not implemented
+            evidences: form.evidences
         };
         try {
             const res = await fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports', {
@@ -92,7 +100,7 @@ const RaggingReport = () => {
                     status: 'PENDING',
                     involvedPersons: [{ ...initialPerson }],
                     witnesses: [{ ...initialWitness }],
-                    evidences: []
+                    evidences: ['']
                 });
             } else {
                 setMessage({ type: 'error', text: data.message || 'Failed to submit report.' });
@@ -305,20 +313,21 @@ const RaggingReport = () => {
                         {/* Evidence Upload */}
                         <div className="bg-white rounded-2xl shadow p-6">
                             <h2 className="font-semibold text-lg text-gray-900 mb-4">Evidence Upload</h2>
-                            <p className="text-gray-500 text-sm mb-3">Upload any evidence you have (e.g., photos, videos, audio recordings, screenshots of messages, etc.)</p>
-                            <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center text-gray-400 cursor-pointer transition hover:bg-gray-50">
-                                <PaperClipIcon className="w-8 h-8 mb-2" />
-                                <p className="mb-1">Drag files here or click to upload</p>
-                                <p className="text-xs">Supports: Images, Videos, Audio, PDF, Word (Max 10MB per file)</p>
-                                <input
-                                    type="file"
-                                    className="hidden"
-                                    multiple
-                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-                                    disabled
-                                />
-                            </label>
-                            <div className="text-xs text-gray-400 mt-2">Evidence upload not implemented in this demo.</div>
+                            <p className="text-gray-500 text-sm mb-3">Paste links to any evidence you have (e.g., Google Drive links to photos, videos, audio, PDFs, etc.)</p>
+                            {form.evidences.map((url, idx) => (
+                                <div key={idx} className="mb-3 flex gap-2 items-center">
+                                    <input
+                                        type="url"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="Paste evidence URL here (e.g., Google Drive link)"
+                                        value={url}
+                                        onChange={e => handleEvidenceChange(idx, e.target.value)}
+                                    />
+                                </div>
+                            ))}
+                            <button type="button" onClick={addEvidence} className="mt-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                                <PlusIcon className="w-5 h-5" /> Add Another Evidence Link
+                            </button>
                         </div>
                         {/* Submit/Save */}
                         <div className="flex flex-col sm:flex-row gap-4 mt-4">
