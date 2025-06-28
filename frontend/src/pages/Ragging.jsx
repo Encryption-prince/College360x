@@ -9,14 +9,100 @@ import { PencilIcon, ArrowDownTrayIcon, DocumentArrowUpIcon, ArrowPathIcon, XMar
 
 const roles = ['Student', 'Faculty', 'Staff', 'Other'];
 
-const RaggingReport = () => {
-    const [persons, setPersons] = useState([{ name: '', role: '', details: '' }]);
-    const [witnesses, setWitnesses] = useState([{ name: '', contact: '', anonymous: false }]);
-    const [severity, setSeverity] = useState('Low');
-    const [reportAsSelf, setReportAsSelf] = useState(false);
+const initialPerson = { name: '', role: '', additionalDetails: '' };
+const initialWitness = { name: '', contactInfo: '', isAnonymous: false };
 
-    const addPerson = () => setPersons([...persons, { name: '', role: '', details: '' }]);
-    const addWitness = () => setWitnesses([...witnesses, { name: '', contact: '', anonymous: false }]);
+const RaggingReport = () => {
+    // Form state
+    const [form, setForm] = useState({
+        dateOfIncident: '',
+        timeOfIncident: '',
+        location: '',
+        severityLevel: 'Low',
+        description: '',
+        reportAsSelf: false,
+        status: 'PENDING',
+        involvedPersons: [{ ...initialPerson }],
+        witnesses: [{ ...initialWitness }],
+        evidences: [] // File upload not implemented yet
+    });
+    const [submitting, setSubmitting] = useState(false);
+    const [message, setMessage] = useState(null);
+
+    // Handlers for dynamic fields
+    const addPerson = () => setForm(f => ({ ...f, involvedPersons: [...f.involvedPersons, { ...initialPerson }] }));
+    const addWitness = () => setForm(f => ({ ...f, witnesses: [...f.witnesses, { ...initialWitness }] }));
+
+    // Handlers for input changes
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    };
+    const handlePersonChange = (idx, field, value) => {
+        setForm(f => {
+            const updated = [...f.involvedPersons];
+            updated[idx][field] = value;
+            return { ...f, involvedPersons: updated };
+        });
+    };
+    const handleWitnessChange = (idx, field, value) => {
+        setForm(f => {
+            const updated = [...f.witnesses];
+            updated[idx][field] = value;
+            return { ...f, witnesses: updated };
+        });
+    };
+
+    // Submit handler
+    const handleSubmit = async (e, draft = false) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setMessage(null);
+        const payload = {
+            ...form,
+            status: draft ? 'DRAFT' : 'PENDING',
+            involvedPersons: form.involvedPersons.map(p => ({
+                name: p.name,
+                role: p.role,
+                additionalDetails: p.additionalDetails
+            })),
+            witnesses: form.witnesses.map(w => ({
+                name: w.name,
+                contactInfo: w.contactInfo,
+                isAnonymous: w.isAnonymous
+            })),
+            evidences: [] // File upload not implemented
+        };
+        try {
+            const res = await fetch('http://localhost:8080/api/ragging-reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setMessage({ type: 'success', text: `Report ${draft ? 'saved as draft' : 'submitted'}! ID: ${data.reportId}` });
+                setForm({
+                    dateOfIncident: '',
+                    timeOfIncident: '',
+                    location: '',
+                    severityLevel: 'Low',
+                    description: '',
+                    reportAsSelf: false,
+                    status: 'PENDING',
+                    involvedPersons: [{ ...initialPerson }],
+                    witnesses: [{ ...initialWitness }],
+                    evidences: []
+                });
+            } else {
+                setMessage({ type: 'error', text: data.message || 'Failed to submit report.' });
+            }
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Network error: ' + err.message });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     return (
         <div className="max-w-[90rem] mx-auto w-full py-8 px-2 md:px-8">
@@ -46,261 +132,271 @@ const RaggingReport = () => {
                 <h1 className="text-2xl font-bold text-gray-900 font-poppins">Report Ragging Incident</h1>
             </div>
             <p className="mb-6 text-gray-600 max-w-2xl">Your safety is our priority. All reports are handled with strict confidentiality and appropriate action will be taken. You can choose to remain anonymous if you prefer.</p>
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-                {/* Main Form */}
-                <div className="lg:col-span-3 space-y-6 w-full">
-                    {/* Incident Details */}
-                    <div className="bg-white rounded-2xl shadow p-6 mb-2">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="font-semibold text-lg text-gray-900">Incident Details</h2>
-                            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
-                                <span className="mr-2">Report as Yourself</span>
-                                <button
-                                    type="button"
-                                    aria-pressed={reportAsSelf}
-                                    onClick={() => setReportAsSelf(v => !v)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none
-                    ${reportAsSelf ? 'bg-blue-500' : 'bg-gray-300'}`}
-                                >
-                                    <span
-                                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200
-                      ${reportAsSelf ? 'translate-x-5' : 'translate-x-1'}`}
-                                    />
-                                </button>
-                            </label>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Date of Incident</label>
-                                <div className="border border-gray-200 rounded-lg p-2">
-                                    <input type="date" className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Time of Incident</label>
-                                <div className="border border-gray-200 rounded-lg p-2">
-                                    <input type="time" className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Location</label>
-                                <div className="border border-gray-200 rounded-lg p-2">
-                                    <select className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200">
-                                        <option>Select location</option>
-                                        <option>Hostel</option>
-                                        <option>Classroom</option>
-                                        <option>Cafeteria</option>
-                                        <option>Sports Ground</option>
-                                        <option>Other</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Severity Level</label>
-                                <div className='mt-3'>
-                                    <div className="flex gap-3 mt-1">
-                                        {['Low', 'Medium', 'High'].map(level => (
-                                            <label key={level} className={`flex items-center gap-2 px-4 py-1 rounded-full border text-sm font-medium cursor-pointer transition
-                        ${severity === level
-                                                    ? level === 'Low'
-                                                        ? 'bg-yellow-100 border-yellow-400 text-yellow-700'
-                                                        : level === 'Medium'
-                                                            ? 'bg-orange-100 border-orange-400 text-orange-700'
-                                                            : 'bg-red-100 border-red-400 text-red-700'
-                                                    : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="severity"
-                                                    value={level}
-                                                    checked={severity === level}
-                                                    onChange={() => setSeverity(level)}
-                                                    className={
-                                                        level === 'Low' ? 'accent-yellow-400' :
-                                                            level === 'Medium' ? 'accent-orange-400' :
-                                                                'accent-red-500'
-                                                    }
-                                                />
-                                                {level}
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Description of the Incident</label>
-                            <div className="border border-gray-200 rounded-lg p-2">
-                                <textarea className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200 min-h-[80px]" maxLength={2000} placeholder="Please provide a detailed description of what happened. Include any relevant context that might help us understand the situation better." />
-                                <div className="text-xs text-gray-400 text-right mt-1">0/2000</div>
-                            </div>
-                        </div>
-                    </div>
-                    {/* Involved Persons */}
-                    <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="font-semibold text-lg text-gray-900 mb-4">Involved Persons</h2>
-                        {persons.map((person, idx) => (
-                            <div key={idx} className="mb-6 bg-gray-50 rounded-xl p-4">
-                                <div className="font-semibold text-gray-700 mb-2">Person {idx + 1}</div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Name (if known)</label>
-                                        <div className="border border-gray-200 rounded-lg p-2">
-                                            <input className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" placeholder="Enter name" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Role</label>
-                                        <div className="border border-gray-200 rounded-lg p-2">
-                                            <select className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200">
-                                                <option>Select role</option>
-                                                {roles.map(role => <option key={role}>{role}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-4">
-                                    <label className="block text-sm font-medium mb-1">Additional Details</label>
-                                    <div className="border border-gray-200 rounded-lg p-2">
-                                        <textarea className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200 min-h-[38px]" placeholder="Any additional info (e.g., department, year, identifying characteristics)" />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                        <button type="button" onClick={addPerson} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-4 py-2 mt-2 mb-2 shadow">
-                            <PlusIcon className="w-5 h-5" /> Add Another Person
-                        </button>
-                    </div>
-                    {/* Witnesses */}
-                    <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="font-semibold text-lg text-gray-900 mb-4">Witnesses (if any)</h2>
-                        {witnesses.map((w, idx) => (
-                            <div key={idx} className="mb-6 bg-gray-50 rounded-xl p-4">
-                                <div className="font-semibold text-gray-700 mb-2">Witness {idx + 1}</div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Name</label>
-                                        <div className="border border-gray-200 rounded-lg p-2">
-                                            <input className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" placeholder="Enter name" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Contact Information (optional)</label>
-                                        <div className="border border-gray-200 rounded-lg p-2">
-                                            <input className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" placeholder="Email or phone number" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 mt-2">
+            {message && (
+                <div className={`mb-4 px-4 py-3 rounded-lg ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{message.text}</div>
+            )}
+            <form onSubmit={e => handleSubmit(e, false)}>
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+                    {/* Main Form */}
+                    <div className="lg:col-span-3 space-y-6 w-full">
+                        {/* Incident Details */}
+                        <div className="bg-white rounded-2xl shadow p-6 mb-2">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="font-semibold text-lg text-gray-900">Incident Details</h2>
+                                <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+                                    <span className="mr-2">Report as Yourself</span>
                                     <button
                                         type="button"
-                                        aria-pressed={w.anonymous}
-                                        onClick={() => setWitnesses(ws => ws.map((item, i) => i === idx ? { ...item, anonymous: !item.anonymous } : item))}
+                                        aria-pressed={form.reportAsSelf}
+                                        onClick={() => setForm(f => ({ ...f, reportAsSelf: !f.reportAsSelf }))}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none
-                      ${w.anonymous ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    ${form.reportAsSelf ? 'bg-blue-500' : 'bg-gray-300'}`}
                                     >
                                         <span
                                             className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200
-                        ${w.anonymous ? 'translate-x-5' : 'translate-x-1'}`}
+                      ${form.reportAsSelf ? 'translate-x-5' : 'translate-x-1'}`}
                                         />
                                     </button>
-                                    <span className="text-sm text-gray-500">Keep this witness anonymous in the report</span>
+                                </label>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Date of Incident</label>
+                                    <div className="border border-gray-200 rounded-lg p-2">
+                                        <input type="date" name="dateOfIncident" value={form.dateOfIncident} onChange={handleChange} className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Time of Incident</label>
+                                    <div className="border border-gray-200 rounded-lg p-2">
+                                        <input type="time" name="timeOfIncident" value={form.timeOfIncident} onChange={handleChange} className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Location</label>
+                                    <div className="border border-gray-200 rounded-lg p-2">
+                                        <select name="location" value={form.location} onChange={handleChange} className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200">
+                                            <option value="">Select location</option>
+                                            <option>Hostel</option>
+                                            <option>Classroom</option>
+                                            <option>Cafeteria</option>
+                                            <option>Sports Ground</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Severity Level</label>
+                                    <div className='mt-3'>
+                                        <div className="flex gap-3 mt-1">
+                                            {['Low', 'Medium', 'High'].map(level => (
+                                                <label key={level} className={`flex items-center gap-2 px-4 py-1 rounded-full border text-sm font-medium cursor-pointer transition
+                        ${form.severityLevel === level
+                                                        ? level === 'Low'
+                                                            ? 'bg-yellow-100 border-yellow-400 text-yellow-700'
+                                                            : level === 'Medium'
+                                                                ? 'bg-orange-100 border-orange-400 text-orange-700'
+                                                                : 'bg-red-100 border-red-400 text-red-700'
+                                                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="severityLevel"
+                                                        value={level}
+                                                        checked={form.severityLevel === level}
+                                                        onChange={handleChange}
+                                                        className={
+                                                            level === 'Low' ? 'accent-yellow-400' :
+                                                                level === 'Medium' ? 'accent-orange-400' :
+                                                                    'accent-red-500'
+                                                        }
+                                                    />
+                                                    {level}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        ))}
-                        <button type="button" onClick={addWitness} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-4 py-2 mt-2 mb-2 shadow">
-                            <PlusIcon className="w-5 h-5" /> Add Another Witness
-                        </button>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Description of the Incident</label>
+                                <div className="border border-gray-200 rounded-lg p-2">
+                                    <textarea name="description" value={form.description} onChange={handleChange} className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200 min-h-[80px]" maxLength={2000} placeholder="Please provide a detailed description of what happened. Include any relevant context that might help us understand the situation better." />
+                                    <div className="text-xs text-gray-400 text-right mt-1">{form.description.length}/2000</div>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Involved Persons */}
+                        <div className="bg-white rounded-2xl shadow p-6">
+                            <h2 className="font-semibold text-lg text-gray-900 mb-4">Involved Persons</h2>
+                            {form.involvedPersons.map((person, idx) => (
+                                <div key={idx} className="mb-6 bg-gray-50 rounded-xl p-4">
+                                    <div className="font-semibold text-gray-700 mb-2">Person {idx + 1}</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Name (if known)</label>
+                                            <div className="border border-gray-200 rounded-lg p-2">
+                                                <input className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" placeholder="Enter name" value={person.name} onChange={e => handlePersonChange(idx, 'name', e.target.value)} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Role</label>
+                                            <div className="border border-gray-200 rounded-lg p-2">
+                                                <select className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" value={person.role} onChange={e => handlePersonChange(idx, 'role', e.target.value)}>
+                                                    <option value="">Select role</option>
+                                                    {roles.map(role => <option key={role}>{role}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="block text-sm font-medium mb-1">Additional Details</label>
+                                        <div className="border border-gray-200 rounded-lg p-2">
+                                            <textarea className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200 min-h-[38px]" placeholder="Any additional info (e.g., department, year, identifying characteristics)" value={person.additionalDetails} onChange={e => handlePersonChange(idx, 'additionalDetails', e.target.value)} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            <button type="button" onClick={addPerson} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-4 py-2 mt-2 mb-2 shadow">
+                                <PlusIcon className="w-5 h-5" /> Add Another Person
+                            </button>
+                        </div>
+                        {/* Witnesses */}
+                        <div className="bg-white rounded-2xl shadow p-6">
+                            <h2 className="font-semibold text-lg text-gray-900 mb-4">Witnesses (if any)</h2>
+                            {form.witnesses.map((w, idx) => (
+                                <div key={idx} className="mb-6 bg-gray-50 rounded-xl p-4">
+                                    <div className="font-semibold text-gray-700 mb-2">Witness {idx + 1}</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Name</label>
+                                            <div className="border border-gray-200 rounded-lg p-2">
+                                                <input className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" placeholder="Enter name" value={w.name} onChange={e => handleWitnessChange(idx, 'name', e.target.value)} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Contact Information (optional)</label>
+                                            <div className="border border-gray-200 rounded-lg p-2">
+                                                <input className="w-full rounded-lg border-none focus:outline-none focus:ring-0 focus:border-gray-200" placeholder="Email or phone number" value={w.contactInfo} onChange={e => handleWitnessChange(idx, 'contactInfo', e.target.value)} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <button
+                                            type="button"
+                                            aria-pressed={w.isAnonymous}
+                                            onClick={() => handleWitnessChange(idx, 'isAnonymous', !w.isAnonymous)}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none
+                      ${w.isAnonymous ? 'bg-blue-500' : 'bg-gray-300'}`}
+                                        >
+                                            <span
+                                                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200
+                        ${w.isAnonymous ? 'translate-x-5' : 'translate-x-1'}`}
+                                            />
+                                        </button>
+                                        <span className="text-sm text-gray-500">Keep this witness anonymous in the report</span>
+                                    </div>
+                                </div>
+                            ))}
+                            <button type="button" onClick={addWitness} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-4 py-2 mt-2 mb-2 shadow">
+                                <PlusIcon className="w-5 h-5" /> Add Another Witness
+                            </button>
+                        </div>
+                        {/* Evidence Upload */}
+                        <div className="bg-white rounded-2xl shadow p-6">
+                            <h2 className="font-semibold text-lg text-gray-900 mb-4">Evidence Upload</h2>
+                            <p className="text-gray-500 text-sm mb-3">Upload any evidence you have (e.g., photos, videos, audio recordings, screenshots of messages, etc.)</p>
+                            <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center text-gray-400 cursor-pointer transition hover:bg-gray-50">
+                                <PaperClipIcon className="w-8 h-8 mb-2" />
+                                <p className="mb-1">Drag files here or click to upload</p>
+                                <p className="text-xs">Supports: Images, Videos, Audio, PDF, Word (Max 10MB per file)</p>
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    multiple
+                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                                    disabled
+                                />
+                            </label>
+                            <div className="text-xs text-gray-400 mt-2">Evidence upload not implemented in this demo.</div>
+                        </div>
+                        {/* Submit/Save */}
+                        <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                            <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg px-8 py-3 shadow" disabled={submitting}>{submitting ? 'Submitting...' : 'Submit Report'}</button>
+                            <button type="button" className="bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg px-8 py-3 shadow" onClick={e => handleSubmit(e, true)} disabled={submitting}>{submitting ? 'Saving...' : 'Save as Draft'}</button>
+                        </div>
+                        {/* Important Reminder */}
+                        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-3 mt-4 flex items-start gap-2">
+                            <InformationCircleIcon className="w-8 h-8 mt-0.5 text-yellow-500" />
+                            <span>Filing a false report is a serious offense and may result in disciplinary action. Please ensure all information provided is accurate to the best of your knowledge.</span>
+                        </div>
                     </div>
-                    {/* Evidence Upload */}
-                    <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="font-semibold text-lg text-gray-900 mb-4">Evidence Upload</h2>
-                        <p className="text-gray-500 text-sm mb-3">Upload any evidence you have (e.g., photos, videos, audio recordings, screenshots of messages, etc.)</p>
-                        <label className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center text-gray-400 cursor-pointer transition hover:bg-gray-50">
-                            <PaperClipIcon className="w-8 h-8 mb-2" />
-                            <p className="mb-1">Drag files here or click to upload</p>
-                            <p className="text-xs">Supports: Images, Videos, Audio, PDF, Word (Max 10MB per file)</p>
-                            <input
-                                type="file"
-                                className="hidden"
-                                multiple
-                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-                            />
-                        </label>
-                    </div>
-                    {/* Submit/Save */}
-                    <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                        <button className="bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg px-8 py-3 shadow">Submit Report</button>
-                        <button className="bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg px-8 py-3 shadow">Save as Draft</button>
-                    </div>
-                    {/* Important Reminder */}
-                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-3 mt-4 flex items-start gap-2">
-                        <InformationCircleIcon className="w-8 h-8 mt-0.5 text-yellow-500" />
-                        <span>Filing a false report is a serious offense and may result in disciplinary action. Please ensure all information provided is accurate to the best of your knowledge.</span>
+                    {/* Sidebar */}
+                    <div className="lg:col-span-2 space-y-6 w-full max-w-none">
+                        <div className="bg-blue-50  border-l-4 border-l-blue-500 rounded-xl shadow p-5">
+                            <h3 className="font-bold text-base text-blue-700 mb-2">Confidentiality Guarantee</h3>
+                            <p className="text-sm text-blue-700 mb-2">All information provided in this report will be handled with strict confidentiality. Your identity will be protected unless you choose to disclose it.</p>
+                            <p className="text-sm text-blue-700">Only authorized personnel from the Anti-Ragging Committee will have access to this information.</p>
+                        </div>
+                        <div className="bg-white border-2 border-gray-200 rounded-xl shadow p-5">
+                            <h3 className="font-bold text-base text-gray-900 mb-2">What Happens Next?</h3>
+                            <ol className="list-decimal list-inside text-sm text-gray-700 space-y-2 pl-2">
+                                <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
+                                    1
+                                </span>
+                                    Your report will be reviewed by the Anti-Ragging Committee within 24 hours.</li>
+                                <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
+                                    2
+                                </span>
+                                    If additional information is needed, you will be contacted through your preferred method.</li>
+                                <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
+                                    3
+                                </span>
+                                    Appropriate action will be taken based on the severity and evidence provided.</li>
+                                <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
+                                    4
+                                </span>
+                                    You will receive updates on the status of your report through the platform.</li>
+                            </ol>
+                        </div>
+                        <div className="bg-red-50 border-l-4 border-l-red-500 rounded-xl shadow p-5">
+                            <h3 className="font-bold text-base text-red-700 mb-2">Emergency Contacts</h3>
+                            <ul className="text-sm text-red-700 space-y-2 pl-1">
+                                <li className="flex items-center gap-2"><PhoneIcon className="w-4 h-4" /> <span>Anti-Ragging Helpline <span className="font-semibold"><br />1800-180-5522</span></span></li>
+                                <li className="flex items-center gap-2"><PhoneIcon className="w-4 h-4" /> <span>Campus Security <span className="font-semibold"><br />+91 98765 43210</span></span></li>
+                                <li className="flex items-center gap-2"><UserIcon className="w-4 h-4" /> <span>Student Counselor <span className="font-semibold"><br />counselor@campus.edu</span></span></li>
+                            </ul>
+                        </div>
+                        <div className="bg-white border-2 border-gray-200 rounded-xl shadow p-5">
+                            <h3 className="font-bold text-base text-gray-900 mb-2">Helpful Resources</h3>
+                            <ul className="text-sm space-y-2 pl-1">
+                                <li><a href="#" className="hover:underline flex items-center text-purple-700"><DocumentTextIcon className="w-4 h-4 mr-1" /> Anti-Ragging Policy</a></li>
+                                <li><a href="#" className="hover:underline flex items-center text-purple-700"><AcademicCapIcon className="w-4 h-4 mr-1" /> UGC Regulations on Ragging</a></li>
+                                <li><a href="#" className="hover:underline flex items-center text-purple-700"><PaperClipIcon className="w-4 h-4 mr-1" /> Video: How to Document Evidence</a></li>
+                                <li><a href="#" className="hover:underline flex items-center text-purple-700"><InformationCircleIcon className="w-4 h-4 mr-1" /> Frequently Asked Questions</a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
-                {/* Sidebar */}
-                <div className="lg:col-span-2 space-y-6 w-full max-w-none">
-                    <div className="bg-blue-50  border-l-4 border-l-blue-500 rounded-xl shadow p-5">
-                        <h3 className="font-bold text-base text-blue-700 mb-2">Confidentiality Guarantee</h3>
-                        <p className="text-sm text-blue-700 mb-2">All information provided in this report will be handled with strict confidentiality. Your identity will be protected unless you choose to disclose it.</p>
-                        <p className="text-sm text-blue-700">Only authorized personnel from the Anti-Ragging Committee will have access to this information.</p>
-                    </div>
-                    <div className="bg-white border-2 border-gray-200 rounded-xl shadow p-5">
-                        <h3 className="font-bold text-base text-gray-900 mb-2">What Happens Next?</h3>
-                        <ol className="list-decimal list-inside text-sm text-gray-700 space-y-2 pl-2">
-                            <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
-                                1
-                            </span>
-                                Your report will be reviewed by the Anti-Ragging Committee within 24 hours.</li>
-                            <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
-                                2
-                            </span>
-                                If additional information is needed, you will be contacted through your preferred method.</li>
-                            <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
-                                3
-                            </span>
-                                Appropriate action will be taken based on the severity and evidence provided.</li>
-                            <li className="flex items-start gap-2"><span className="flex aspect-square h-6 rounded-full bg-purple-600 text-white text-xs font-medium items-center justify-center mt-1">
-                                4
-                            </span>
-                                You will receive updates on the status of your report through the platform.</li>
-                        </ol>
-                    </div>
-                    <div className="bg-red-50 border-l-4 border-l-red-500 rounded-xl shadow p-5">
-                        <h3 className="font-bold text-base text-red-700 mb-2">Emergency Contacts</h3>
-                        <ul className="text-sm text-red-700 space-y-2 pl-1">
-                            <li className="flex items-center gap-2"><PhoneIcon className="w-4 h-4" /> <span>Anti-Ragging Helpline <span className="font-semibold"><br />1800-180-5522</span></span></li>
-                            <li className="flex items-center gap-2"><PhoneIcon className="w-4 h-4" /> <span>Campus Security <span className="font-semibold"><br />+91 98765 43210</span></span></li>
-                            <li className="flex items-center gap-2"><UserIcon className="w-4 h-4" /> <span>Student Counselor <span className="font-semibold"><br />counselor@campus.edu</span></span></li>
-                        </ul>
-                    </div>
-                    <div className="bg-white border-2 border-gray-200 rounded-xl shadow p-5">
-                        <h3 className="font-bold text-base text-gray-900 mb-2">Helpful Resources</h3>
-                        <ul className="text-sm space-y-2 pl-1">
-                            <li><a href="#" className="hover:underline flex items-center text-purple-700"><DocumentTextIcon className="w-4 h-4 mr-1" /> Anti-Ragging Policy</a></li>
-                            <li><a href="#" className="hover:underline flex items-center text-purple-700"><AcademicCapIcon className="w-4 h-4 mr-1" /> UGC Regulations on Ragging</a></li>
-                            <li><a href="#" className="hover:underline flex items-center text-purple-700"><PaperClipIcon className="w-4 h-4 mr-1" /> Video: How to Document Evidence</a></li>
-                            <li><a href="#" className="hover:underline flex items-center text-purple-700"><InformationCircleIcon className="w-4 h-4 mr-1" /> Frequently Asked Questions</a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+            </form>
         </div>
     );
 };
 
 export function RaggingHistoryPage() {
-    const reports = [
-        { id: 'RAG-2025-001', submitted: 'Jun 20, 2025', incident: 'Jun 18, 2025', location: 'Hostel Premises', severity: 'High', status: 'Under Investigation' },
-        { id: 'RAG-2025-002', submitted: 'Jun 15, 2025', incident: 'Jun 14, 2025', location: 'Classroom Building', severity: 'Medium', status: 'Pending' },
-        { id: 'RAG-2025-003', submitted: 'Jun 14, 2025', incident: 'Jun 14, 2025', location: 'Sports Complex', severity: 'High', status: 'Resolved' },
-        { id: 'RAG-2025-006', submitted: 'May 22, 2025', incident: 'May 20, 2025', location: 'Parking Area', severity: 'Medium', status: 'Resolved' },
-        { id: 'RAG-2025-007', submitted: 'May 15, 2025', incident: 'May 14, 2025', location: 'Hostel Premises', severity: 'Low', status: 'Resolved' },
-        { id: 'RAG-2025-008', submitted: 'Jun 21, 2025', incident: 'Jun 21, 2025', location: 'Classroom Building', severity: 'Medium', status: 'Draft' },
-        { id: 'RAG-2025-009', submitted: 'Jun 19, 2025', incident: 'Jun 17, 2025', location: 'Canteen Area', severity: 'Low', status: 'Pending' },
-        { id: 'RAG-2025-010', submitted: 'Jun 12, 2025', incident: 'Jun 10, 2025', location: 'Library', severity: 'High', status: 'Under Investigation' },
-    ];
+    const [reports, setReports] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [statusMessage, setStatusMessage] = useState(null);
+    const [selectedReport, setSelectedReport] = useState(null);
+    const [showModal, setShowModal] = useState(false);
+    const [page, setPage] = useState(1);
+    const reportsPerPage = 5;
+    const totalPages = Math.ceil(reports.length / reportsPerPage);
+    const [sortBy, setSortBy] = useState('id');
+    const [sortOrder, setSortOrder] = useState('asc');
+    const [openMenu, setOpenMenu] = useState(null);
+
     const statusColors = {
         'Draft': 'bg-gray-100 text-gray-700',
         'Pending': 'bg-yellow-100 text-yellow-800',
@@ -312,14 +408,34 @@ export function RaggingHistoryPage() {
         'Medium': 'bg-yellow-100 text-yellow-800',
         'High': 'bg-red-100 text-red-700',
     };
-    const [selectedReport, setSelectedReport] = useState(null);
-    const [showModal, setShowModal] = useState(false);
-    const [page, setPage] = useState(1);
-    const reportsPerPage = 5;
-    const totalPages = Math.ceil(reports.length / reportsPerPage);
-    const [sortBy, setSortBy] = useState('id');
-    const [sortOrder, setSortOrder] = useState('asc');
-    const [openMenu, setOpenMenu] = useState(null);
+
+    // Fetch reports from backend
+    useEffect(() => {
+        setLoading(true);
+        setError(null);
+        fetch('http://localhost:8080/api/ragging-reports')
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch reports');
+                return res.json();
+            })
+            .then(data => {
+                // Map backend data to frontend format if needed
+                setReports(Array.isArray(data) ? data.map(r => ({
+                    ...r,
+                    id: r.id || r.reportId || '',
+                    submitted: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
+                    incident: r.dateOfIncident || '',
+                    location: r.location || '',
+                    severity: r.severityLevel || '',
+                    status: r.status || '',
+                })) : []);
+                setLoading(false);
+            })
+            .catch(err => {
+                setError(err.message);
+                setLoading(false);
+            });
+    }, []);
 
     const handleSort = (column) => {
         if (sortBy === column) {
@@ -370,6 +486,26 @@ export function RaggingHistoryPage() {
         return () => document.removeEventListener('mousedown', handleClick);
     }, [openMenu]);
 
+    // PUT: Update report status
+    const updateReportStatus = async (id, newStatus) => {
+        setStatusMessage(null);
+        try {
+            const res = await fetch(`http://localhost:8080/api/ragging-reports/${id}/status?newStatus=${encodeURIComponent(newStatus)}`, {
+                method: 'PUT',
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setStatusMessage({ type: 'success', text: 'Status updated successfully.' });
+                // Refresh reports
+                setReports(reports => reports.map(r => r.id === id ? { ...r, status: newStatus } : r));
+            } else {
+                setStatusMessage({ type: 'error', text: data.error || 'Failed to update status.' });
+            }
+        } catch (err) {
+            setStatusMessage({ type: 'error', text: 'Network error: ' + err.message });
+        }
+    };
+
     const statusMessages = {
         'Resolved': 'This case has been investigated and appropriate action has been taken. Thank you for your report.',
         'Under Investigation': 'Your report is under investigation. The committee will update you with the outcome.',
@@ -385,6 +521,9 @@ export function RaggingHistoryPage() {
 
     return (
         <div className="max-w-[90rem] mx-auto w-full py-8 px-2 md:px-8">
+            {loading && <div className="mb-4 text-gray-500">Loading reports...</div>}
+            {error && <div className="mb-4 text-red-600">{error}</div>}
+            {statusMessage && <div className={`mb-4 px-4 py-3 rounded-lg ${statusMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{statusMessage.text}</div>}
             {/* Modern Breadcrumb */}
             <nav aria-label="breadcrumb" className="mb-6">
                 <ol className="flex items-center space-x-2 text-sm">
@@ -551,14 +690,14 @@ export function RaggingHistoryPage() {
                                                             <>
                                                                 <Menu.Item>
                                                                     {() => (
-                                                                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700">
+                                                                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700" onClick={() => updateReportStatus(r.id, 'Pending')}>
                                                                             <ArrowPathIcon className="w-5 h-5 mr-2" /> Update
                                                                         </button>
                                                                     )}
                                                                 </Menu.Item>
                                                                 <Menu.Item>
                                                                     {() => (
-                                                                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700">
+                                                                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700" onClick={() => updateReportStatus(r.id, 'Withdrawn')}>
                                                                             <XMarkIcon className="w-5 h-5 mr-2" /> Withdraw Report
                                                                         </button>
                                                                     )}
