@@ -20,6 +20,7 @@ import StudyMaterial from "./pages/StudyMaterial.jsx";
 import StudyPartner from "./pages/StudyPartner.jsx";
 import ProtectedRoute from "./ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import AptosWalletProvider from "./components/AptosWalletProvider";
 
 function AppRoutes() {
   const { isLoggedIn } = useAuth();
@@ -125,7 +126,9 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <AptosWalletProvider>
+        <AppRoutes />
+      </AptosWalletProvider>
     </AuthProvider>
   );
 }

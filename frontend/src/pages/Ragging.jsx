@@ -1,11 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ExclamationTriangleIcon, UserIcon, PlusIcon, PaperClipIcon, InformationCircleIcon, PhoneIcon, AcademicCapIcon, DocumentTextIcon, CalendarIcon, MagnifyingGlassIcon, EyeIcon, EllipsisHorizontalIcon, ExclamationCircleIcon, MapPinIcon, ShieldCheckIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, UserIcon, PlusIcon, PaperClipIcon, InformationCircleIcon, PhoneIcon, AcademicCapIcon, DocumentTextIcon, CalendarIcon, MagnifyingGlassIcon, EyeIcon, EllipsisHorizontalIcon, ExclamationCircleIcon, MapPinIcon, ShieldCheckIcon, ArrowTopRightOnSquareIcon, WalletIcon, LockClosedIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { HomeIcon } from '@heroicons/react/24/solid';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSort } from '@fortawesome/free-solid-svg-icons';
 import { Menu, Transition } from '@headlessui/react';
 import { PencilIcon, ArrowDownTrayIcon, DocumentArrowUpIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useAptos } from '../components/AptosWalletProvider';
+import WalletSelector from '../components/WalletSelector';
+import BlockchainSecurityBadge from '../components/BlockchainSecurityBadge';
+import { 
+    submitReportToBlockchain, 
+    createReportHash, 
+    hashSensitiveData, 
+    generateReportId,
+    verifyReportOnBlockchain,
+    createProofOfExistence,
+    verifyTransaction,
+    getTransactionUrl
+} from '../utils/aptosUtils';
 
 const roles = ['Student', 'Faculty', 'Staff', 'Other'];
 
@@ -13,6 +26,9 @@ const initialPerson = { name: '', role: '', additionalDetails: '' };
 const initialWitness = { name: '', contactInfo: '', isAnonymous: false };
 
 const RaggingReport = () => {
+    // Wallet state
+    const { isConnected, account, signAndSubmitTransaction } = useAptos();
+    
     // Form state
     const [form, setForm] = useState({
         dateOfIncident: '',
@@ -28,6 +44,15 @@ const RaggingReport = () => {
     });
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState(null);
+    const [blockchainStatus, setBlockchainStatus] = useState({
+        isOnBlockchain: false,
+        isVerified: false,
+        reportHash: null,
+        transactionHash: null,
+        verificationStatus: 'pending'
+    });
+    const [transactionDetails, setTransactionDetails] = useState(null);
+    const [verifying, setVerifying] = useState(false);
 
     // Handlers for dynamic fields
     const addPerson = () => setForm(f => ({ ...f, involvedPersons: [...f.involvedPersons, { ...initialPerson }] }));
@@ -61,54 +86,163 @@ const RaggingReport = () => {
         });
     };
 
-    // Submit handler
+    // Submit handler with blockchain integration
     const handleSubmit = async (e, draft = false) => {
         e.preventDefault();
         setSubmitting(true);
         setMessage(null);
-        const payload = {
-            ...form,
-            status: draft ? 'DRAFT' : 'PENDING',
-            involvedPersons: form.involvedPersons.map(p => ({
-                name: p.name,
-                role: p.role,
-                additionalDetails: p.additionalDetails
-            })),
-            witnesses: form.witnesses.map(w => ({
-                name: w.name,
-                contactInfo: w.contactInfo,
-                isAnonymous: w.isAnonymous
-            })),
-            evidences: form.evidences
-        };
+
+        // Debug wallet connection
+        console.log('=== WALLET DEBUG ===');
+        console.log('connected:', isConnected);
+        console.log('account:', account);
+        console.log('account.address:', account?.address);
+        console.log('signAndSubmitTransaction:', typeof signAndSubmitTransaction);
+        console.log('===================');
+
+        // Clear previous blockchain status when starting a new submission
+        setBlockchainStatus({
+            isOnBlockchain: false,
+            isVerified: false,
+            reportHash: null,
+            transactionHash: null,
+            verificationStatus: 'pending',
+            isSimulated: false
+        });
+
         try {
-            const res = await fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports', {
+            // Generate report ID and hash
+            const reportId = generateReportId();
+            const reportHash = createReportHash(form);
+            const proofOfExistence = createProofOfExistence(form);
+
+            // Prepare payload for backend
+            const payload = {
+                reportId,
+                ...form,
+                status: draft ? 'DRAFT' : 'PENDING',
+                involvedPersons: form.involvedPersons.map(p => ({
+                    nameHash: hashSensitiveData(p.name),
+                    role: p.role,
+                    additionalDetailsHash: hashSensitiveData(p.additionalDetails)
+                })),
+                witnesses: form.witnesses.map(w => ({
+                    nameHash: hashSensitiveData(w.name),
+                    contactInfoHash: hashSensitiveData(w.contactInfo),
+                    isAnonymous: w.isAnonymous
+                })),
+                evidences: form.evidences.map(hashSensitiveData),
+                reportHash,
+                proofOfExistence
+            };
+
+            // Submit to backend first
+            const backendRes = await fetch('https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await res.json();
-            if (res.ok) {
-                setMessage({ type: 'success', text: `Report ${draft ? 'saved as draft' : 'submitted'}! ID: ${data.reportId}` });
-                setForm({
-                    dateOfIncident: '',
-                    timeOfIncident: '',
-                    location: '',
-                    severityLevel: 'Low',
-                    description: '',
-                    reportAsSelf: false,
-                    status: 'PENDING',
-                    involvedPersons: [{ ...initialPerson }],
-                    witnesses: [{ ...initialWitness }],
-                    evidences: ['']
-                });
-            } else {
-                setMessage({ type: 'error', text: data.message || 'Failed to submit report.' });
+
+            if (!backendRes.ok) {
+                throw new Error('Failed to submit to backend');
             }
+
+            const backendData = await backendRes.json();
+
+            // If wallet is connected, submit to blockchain
+            let blockchainResult = null;
+            if (isConnected && account && !draft) {
+                try {
+                    console.log('Submitting to blockchain...', { isConnected, account: account?.address });
+                    blockchainResult = await submitReportToBlockchain(form, { signAndSubmitTransaction });
+                    console.log('Blockchain result:', blockchainResult);
+                    
+                    setBlockchainStatus({
+                        isOnBlockchain: true,
+                        isVerified: false,
+                        reportHash: reportHash,
+                        transactionHash: blockchainResult.transactionHash,
+                        verificationStatus: 'pending',
+                        isSimulated: blockchainResult.isSimulated || false
+                    });
+                    
+                    console.log('Blockchain status updated:', {
+                        isOnBlockchain: true,
+                        transactionHash: blockchainResult.transactionHash,
+                        isSimulated: blockchainResult.isSimulated
+                    });
+                } catch (blockchainError) {
+                    console.error('Blockchain submission failed:', blockchainError);
+                    // Continue with backend submission even if blockchain fails
+                }
+            } else {
+                console.log('Wallet not connected or draft mode:', { isConnected, account: account?.address, draft });
+                if (!isConnected) {
+                    setMessage({ 
+                        type: 'warning', 
+                        text: `Report submitted to backend successfully! To submit to blockchain for enhanced security, please connect your wallet first.` 
+                    });
+                }
+            }
+
+            setMessage({ 
+                type: 'success', 
+                text: `Report ${draft ? 'saved as draft' : 'submitted'}! ID: ${reportId}${blockchainResult ? (blockchainResult.isSimulated ? ' | Blockchain simulation completed' : ' | Blockchain TX: ' + blockchainResult.transactionHash.substring(0, 10) + '...') : ''}` 
+            });
+
+            // Reset form
+            setForm({
+                dateOfIncident: '',
+                timeOfIncident: '',
+                location: '',
+                severityLevel: 'Low',
+                description: '',
+                reportAsSelf: false,
+                status: 'PENDING',
+                involvedPersons: [{ ...initialPerson }],
+                witnesses: [{ ...initialWitness }],
+                evidences: ['']
+            });
+
         } catch (err) {
             setMessage({ type: 'error', text: 'Network error: ' + err.message });
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Verify transaction on blockchain
+    const handleVerifyTransaction = async () => {
+        if (!blockchainStatus.transactionHash) return;
+        
+        setVerifying(true);
+        try {
+            const result = await verifyTransaction(blockchainStatus.transactionHash);
+            setTransactionDetails(result);
+            
+            if (result.success) {
+                setBlockchainStatus(prev => ({
+                    ...prev,
+                    isVerified: true,
+                    verificationStatus: 'verified'
+                }));
+                setMessage({ 
+                    type: 'success', 
+                    text: `Transaction verified! Status: ${result.status}` 
+                });
+            } else {
+                setMessage({ 
+                    type: 'error', 
+                    text: `Transaction verification failed: ${result.error}` 
+                });
+            }
+        } catch (error) {
+            setMessage({ 
+                type: 'error', 
+                text: `Verification error: ${error.message}` 
+            });
+        } finally {
+            setVerifying(false);
         }
     };
 
@@ -131,18 +265,197 @@ const RaggingReport = () => {
                     <li className="text-gray-700 font-semibold">Report Incident</li>
                 </ol>
             </nav>
-            {/* <button className="mb-4 flex items-center gap-2 text-sm text-gray-500 hover:underline">
-                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                Back to Dashboard
-            </button> */}
+
             <div className="flex items-center gap-3 mb-2">
                 <ExclamationTriangleIcon className="w-7 h-7 text-red-500" />
                 <h1 className="text-2xl font-bold text-gray-900 font-poppins">Report Ragging Incident</h1>
             </div>
             <p className="mb-6 text-gray-600 max-w-2xl">Your safety is our priority. All reports are handled with strict confidentiality and appropriate action will be taken. You can choose to remain anonymous if you prefer.</p>
-            {message && (
-                <div className={`mb-4 px-4 py-3 rounded-lg ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{message.text}</div>
+
+            {/* Blockchain Security Badge */}
+            <BlockchainSecurityBadge 
+                isVerified={blockchainStatus.isVerified}
+                isOnBlockchain={blockchainStatus.isOnBlockchain}
+                reportHash={blockchainStatus.reportHash}
+                transactionHash={blockchainStatus.transactionHash}
+                verificationStatus={blockchainStatus.verificationStatus}
+                showDetails={true}
+                isSimulated={blockchainStatus.isSimulated}
+            />
+
+            {/* Transaction Verification Section */}
+            {blockchainStatus.transactionHash && (
+                <div className={`bg-gradient-to-r ${blockchainStatus.isSimulated ? 'from-blue-50 to-purple-50 border-blue-200' : 'from-green-50 to-blue-50 border-green-200'} border rounded-xl p-6 mb-6`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <ShieldCheckIcon className={`w-6 h-6 ${blockchainStatus.isSimulated ? 'text-blue-600' : 'text-green-600'}`} />
+                            <div>
+                                <h3 className={`font-semibold ${blockchainStatus.isSimulated ? 'text-blue-900' : 'text-green-900'}`}>
+                                    {blockchainStatus.isSimulated ? 'Simulation Complete' : 'Transaction Verification'}
+                                </h3>
+                                <p className={`text-sm ${blockchainStatus.isSimulated ? 'text-blue-700' : 'text-green-700'}`}>
+                                    {blockchainStatus.isSimulated ? 'Report submitted (simulated for testing)' : 'Verify your transaction on the blockchain'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {!blockchainStatus.isSimulated && (
+                                <button
+                                    onClick={handleVerifyTransaction}
+                                    disabled={verifying}
+                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium rounded-lg px-4 py-2 shadow"
+                                >
+                                    {verifying ? (
+                                        <>
+                                            <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                            Verifying...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ShieldCheckIcon className="w-4 h-4" />
+                                            Verify Transaction
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                            {blockchainStatus.isSimulated ? (
+                                <div className="flex items-center gap-2 bg-blue-600 text-white font-medium rounded-lg px-4 py-2">
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                    Simulation Complete
+                                </div>
+                            ) : (
+                                <a
+                                    href={getTransactionUrl(blockchainStatus.transactionHash)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 shadow"
+                                >
+                                    <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                                    View on Explorer
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Transaction Details */}
+                    {transactionDetails && !blockchainStatus.isSimulated && (
+                        <div className="bg-white rounded-lg p-4 border border-green-200">
+                            <h4 className="font-semibold text-green-900 mb-2">Transaction Details</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="font-medium text-gray-600">Status:</span>
+                                    <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                                        transactionDetails.status === 'success' 
+                                            ? 'bg-green-100 text-green-800' 
+                                            : 'bg-red-100 text-red-800'
+                                    }`}>
+                                        {transactionDetails.status}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Gas Used:</span>
+                                    <span className="ml-2 font-mono">{transactionDetails.gasUsed || 'N/A'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Timestamp:</span>
+                                    <span className="ml-2">{transactionDetails.timestamp ? new Date(transactionDetails.timestamp).toLocaleString() : 'N/A'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Transaction Hash:</span>
+                                    <span className="ml-2 font-mono text-xs break-all">{blockchainStatus.transactionHash}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Simulation Details */}
+                    {blockchainStatus.isSimulated && (
+                        <div className="bg-white rounded-lg p-4 border border-blue-200">
+                            <h4 className="font-semibold text-blue-900 mb-2">Simulation Details</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="font-medium text-gray-600">Status:</span>
+                                    <span className="ml-2 px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Simulated
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Report Hash:</span>
+                                    <span className="ml-2 font-mono text-xs break-all">{blockchainStatus.reportHash}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Mock Transaction Hash:</span>
+                                    <span className="ml-2 font-mono text-xs break-all">{blockchainStatus.transactionHash}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Note:</span>
+                                    <span className="ml-2 text-blue-600">Smart contract deployment pending</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             )}
+
+            {/* Wallet Connection Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 mb-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <WalletIcon className="w-6 h-6 text-blue-600" />
+                        <div>
+                            <h3 className="font-semibold text-blue-900">Blockchain Security</h3>
+                            <p className="text-sm text-blue-700">Connect your wallet for enhanced security and immutability</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {isConnected ? (
+                            <div className="flex items-center gap-2">
+                                <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                                <span className="text-sm font-medium text-green-700">Connected</span>
+                                <span className="text-xs text-gray-500 font-mono">
+                                    {account?.address ? 
+                                        `${account.address.substring(0, 6)}...${account.address.substring(-4)}` : 
+                                        'Wallet'
+                                    }
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600" />
+                                <span className="text-sm text-yellow-700">Wallet not connected</span>
+                            </div>
+                        )}
+                        <WalletSelector />
+                    </div>
+                </div>
+                
+                {/* Debug wallet connection status */}
+                <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="text-xs text-gray-600">
+                        <strong>Debug Info:</strong> connected={isConnected.toString()}, account={account ? 'defined' : 'undefined'}, address={account?.address || 'none'}
+                    </div>
+                </div>
+                
+                {isConnected && (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm text-green-700">
+                            <LockClosedIcon className="w-4 h-4" />
+                            <span>Your report will be securely stored on the Aptos blockchain for immutability and transparency.</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {message && (
+                <div className={`mb-4 px-4 py-3 rounded-lg ${
+                    message.type === 'success' ? 'bg-green-100 text-green-800' : 
+                    message.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                }`}>
+                    {message.text}
+                </div>
+            )}
+
             <form onSubmit={e => handleSubmit(e, false)}>
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
                     {/* Main Form */}
@@ -234,6 +547,7 @@ const RaggingReport = () => {
                                 </div>
                             </div>
                         </div>
+
                         {/* Involved Persons */}
                         <div className="bg-white rounded-2xl shadow p-6">
                             <h2 className="font-semibold text-lg text-gray-900 mb-4">Involved Persons</h2>
@@ -269,6 +583,7 @@ const RaggingReport = () => {
                                 <PlusIcon className="w-5 h-5" /> Add Another Person
                             </button>
                         </div>
+
                         {/* Witnesses */}
                         <div className="bg-white rounded-2xl shadow p-6">
                             <h2 className="font-semibold text-lg text-gray-900 mb-4">Witnesses (if any)</h2>
@@ -310,6 +625,7 @@ const RaggingReport = () => {
                                 <PlusIcon className="w-5 h-5" /> Add Another Witness
                             </button>
                         </div>
+
                         {/* Evidence Upload */}
                         <div className="bg-white rounded-2xl shadow p-6">
                             <h2 className="font-semibold text-lg text-gray-900 mb-4">Evidence Upload</h2>
@@ -329,17 +645,20 @@ const RaggingReport = () => {
                                 <PlusIcon className="w-5 h-5" /> Add Another Evidence Link
                             </button>
                         </div>
+
                         {/* Submit/Save */}
                         <div className="flex flex-col sm:flex-row gap-4 mt-4">
                             <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg px-8 py-3 shadow" disabled={submitting}>{submitting ? 'Submitting...' : 'Submit Report'}</button>
                             <button type="button" className="bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg px-8 py-3 shadow" onClick={e => handleSubmit(e, true)} disabled={submitting}>{submitting ? 'Saving...' : 'Save as Draft'}</button>
                         </div>
+
                         {/* Important Reminder */}
                         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-3 mt-4 flex items-start gap-2">
                             <InformationCircleIcon className="w-8 h-8 mt-0.5 text-yellow-500" />
                             <span>Filing a false report is a serious offense and may result in disciplinary action. Please ensure all information provided is accurate to the best of your knowledge.</span>
                         </div>
                     </div>
+
                     {/* Sidebar */}
                     <div className="lg:col-span-2 space-y-6 w-full max-w-none">
                         <div className="bg-blue-50  border-l-4 border-l-blue-500 rounded-xl shadow p-5">
@@ -347,6 +666,21 @@ const RaggingReport = () => {
                             <p className="text-sm text-blue-700 mb-2">All information provided in this report will be handled with strict confidentiality. Your identity will be protected unless you choose to disclose it.</p>
                             <p className="text-sm text-blue-700">Only authorized personnel from the Anti-Ragging Committee will have access to this information.</p>
                         </div>
+
+                        <div className="bg-purple-50 border-l-4 border-l-purple-500 rounded-xl shadow p-5">
+                            <h3 className="font-bold text-base text-purple-700 mb-2 flex items-center gap-2">
+                                <ShieldCheckIcon className="w-5 h-5" />
+                                Blockchain Security
+                            </h3>
+                            <p className="text-sm text-purple-700 mb-2">Your report is secured using Aptos blockchain technology for:</p>
+                            <ul className="text-sm text-purple-700 space-y-1 pl-4">
+                                <li>• Immutable record keeping</li>
+                                <li>• Tamper-proof evidence</li>
+                                <li>• Transparent audit trail</li>
+                                <li>• Enhanced privacy protection</li>
+                            </ul>
+                        </div>
+
                         <div className="bg-white border-2 border-gray-200 rounded-xl shadow p-5">
                             <h3 className="font-bold text-base text-gray-900 mb-2">What Happens Next?</h3>
                             <ol className="list-decimal list-inside text-sm text-gray-700 space-y-2 pl-2">
@@ -368,6 +702,7 @@ const RaggingReport = () => {
                                     You will receive updates on the status of your report through the platform.</li>
                             </ol>
                         </div>
+
                         <div className="bg-red-50 border-l-4 border-l-red-500 rounded-xl shadow p-5">
                             <h3 className="font-bold text-base text-red-700 mb-2">Emergency Contacts</h3>
                             <ul className="text-sm text-red-700 space-y-2 pl-1">
@@ -376,6 +711,7 @@ const RaggingReport = () => {
                                 <li className="flex items-center gap-2"><UserIcon className="w-4 h-4" /> <span>Student Counselor <span className="font-semibold"><br />counselor@campus.edu</span></span></li>
                             </ul>
                         </div>
+
                         <div className="bg-white border-2 border-gray-200 rounded-xl shadow p-5">
                             <h3 className="font-bold text-base text-gray-900 mb-2">Helpful Resources</h3>
                             <ul className="text-sm space-y-2 pl-1">

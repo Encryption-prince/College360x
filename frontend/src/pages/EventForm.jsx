@@ -1,6 +1,37 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as echarts from 'echarts';
 
+/**
+ * EventForm Component
+ * 
+ * This component creates a multi-step form for creating new events.
+ * It integrates with the backend API at localhost:4000/api/v1/event
+ * 
+ * API Endpoint: POST http://localhost:4000/api/v1/event
+ * 
+ * Expected API Response Format:
+ * {
+ *   "data": {
+ *     "registration_count": 0,
+ *     "permission": false,
+ *     "id": 1,
+ *     "name": "HackQuest",
+ *     "collegeId": "2",
+ *     "venueId": "1",
+ *     "clubId": "1",
+ *     "price": "0",
+ *     "startingTime": "2025-06-28T17:52:02.482Z",
+ *     "endingTime": "2025-06-28T19:52:02.482Z",
+ *     "total_seats": "10",
+ *     "updatedAt": "2025-06-28T17:54:02.615Z",
+ *     "createdAt": "2025-06-28T17:54:02.615Z"
+ *   },
+ *   "success": true,
+ *   "message": "successfully created a event",
+ *   "err": {}
+ * }
+ */
+
 const EventForm = () => {
   // Form state matching database model
   const [eventInfo, setEventInfo] = useState({
@@ -20,6 +51,9 @@ const EventForm = () => {
   const [themeColor, setThemeColor] = useState('#4ade80'); // Default mint color
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   // Refs for smooth scrolling
   const sectionRefs = {
@@ -97,23 +131,108 @@ const EventForm = () => {
     }
   }, [activeSection]);
   
-  const handlePublish = () => {
+  const handlePublish = async () => {
     // Validate required fields
     const requiredFields = ['name', 'venueId', 'startingTime', 'endingTime', 'clubId', 'collegeId'];
     const missingFields = requiredFields.filter(field => !eventInfo[field]);
     
     if (missingFields.length > 0) {
-      alert(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
       return;
     }
     
-    // Show success toast
-    setShowSuccess(true);
+    // Validate that end time is after start time
+    if (new Date(eventInfo.endingTime) <= new Date(eventInfo.startingTime)) {
+      setError('End time must be after start time');
+      return;
+    }
     
-    // Hide toast after 3 seconds
-    setTimeout(() => {
-      setShowSuccess(false);
-    }, 3000);
+    // Validate total seats
+    if (eventInfo.total_seats <= 0) {
+      setError('Total seats must be greater than 0');
+      return;
+    }
+    
+    // Clear any previous errors
+    setError('');
+    setIsLoading(true);
+    
+    try {
+      // Prepare the data according to your API format
+      const eventData = {
+        name: eventInfo.name,
+        venueId: eventInfo.venueId.toString(), // Ensure it's a string
+        startingTime: eventInfo.startingTime,
+        endingTime: eventInfo.endingTime,
+        clubId: eventInfo.clubId.toString(), // Ensure it's a string
+        collegeId: eventInfo.collegeId.toString(), // Ensure it's a string
+        total_seats: eventInfo.total_seats.toString(), // Convert to string as per API
+        registration_count: eventInfo.registration_count,
+        price: eventInfo.price.toString(), // Convert to string as per API
+        permission: eventInfo.permission
+      };
+      
+      console.log('Sending event data:', eventData); // For debugging
+      
+      const response = await fetch('http://localhost:4000/api/v1/event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include', // Include cookies if needed
+        body: JSON.stringify(eventData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      console.log('API Response:', result); // For debugging
+      
+      if (result.success) {
+        // Show success toast
+        setShowSuccess(true);
+        setSuccessMessage(result.message || 'Event published successfully!');
+        
+        // Reset form after successful creation
+        setEventInfo({
+          name: '',
+          venueId: '',
+          startingTime: '',
+          endingTime: '',
+          clubId: '',
+          collegeId: '',
+          total_seats: 100,
+          registration_count: 0,
+          price: 0,
+          permission: false
+        });
+        
+        // Hide toast after 3 seconds
+        setTimeout(() => {
+          setShowSuccess(false);
+          setSuccessMessage('');
+        }, 3000);
+      } else {
+        setError(result.message || 'Failed to create event');
+      }
+    } catch (err) {
+      console.error('Error creating event:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Clear error when user starts typing
+  const handleFieldChange = (field, value) => {
+    if (error) {
+      setError('');
+    }
+    setEventInfo({...eventInfo, [field]: value});
   };
   
   return (
@@ -181,23 +300,23 @@ const EventForm = () => {
                       style={{ focusRing: themeColor }}
                       placeholder="Enter event name"
                       value={eventInfo.name}
-                      onChange={(e) => setEventInfo({...eventInfo, name: e.target.value})}
+                      onChange={(e) => handleFieldChange('name', e.target.value)}
                       required
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Club *
+                      Club ID *
                     </label>
                     <div className="relative">
                       <select 
                         className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition appearance-none bg-white"
                         value={eventInfo.clubId}
-                        onChange={(e) => setEventInfo({...eventInfo, clubId: e.target.value})}
+                        onChange={(e) => handleFieldChange('clubId', e.target.value)}
                         required
                       >
-                        <option value="">Select a club</option>
+                        <option value="">Select a club ID</option>
                         {clubs.map(club => (
                           <option key={club.id} value={club.id}>{club.name}</option>
                         ))}
@@ -216,7 +335,7 @@ const EventForm = () => {
                       <select 
                         className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition appearance-none bg-white"
                         value={eventInfo.collegeId}
-                        onChange={(e) => setEventInfo({...eventInfo, collegeId: e.target.value})}
+                        onChange={(e) => handleFieldChange('collegeId', e.target.value)}
                         required
                       >
                         <option value="">Select a college</option>
@@ -239,7 +358,7 @@ const EventForm = () => {
                         type="checkbox"
                         id="permission"
                         checked={eventInfo.permission}
-                        onChange={(e) => setEventInfo({...eventInfo, permission: e.target.checked})}
+                        onChange={(e) => handleFieldChange('permission', e.target.checked)}
                         className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
                       />
                       <label htmlFor="permission" className="ml-2 text-sm text-gray-700">
@@ -268,16 +387,16 @@ const EventForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Venue *
+                      Venue ID *
                     </label>
                     <div className="relative">
                       <select 
                         className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition appearance-none bg-white"
                         value={eventInfo.venueId}
-                        onChange={(e) => setEventInfo({...eventInfo, venueId: e.target.value})}
+                        onChange={(e) => handleFieldChange('venueId', e.target.value)}
                         required
                       >
-                        <option value="">Choose a venue</option>
+                        <option value="">Choose a venue ID</option>
                         {venues.map(venue => (
                           <option key={venue.id} value={venue.id}>{venue.name}</option>
                         ))}
@@ -327,7 +446,7 @@ const EventForm = () => {
                       type="datetime-local" 
                       className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition"
                       value={eventInfo.startingTime}
-                      onChange={(e) => setEventInfo({...eventInfo, startingTime: e.target.value})}
+                      onChange={(e) => handleFieldChange('startingTime', e.target.value)}
                       required
                     />
                   </div>
@@ -340,7 +459,7 @@ const EventForm = () => {
                       type="datetime-local" 
                       className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition"
                       value={eventInfo.endingTime}
-                      onChange={(e) => setEventInfo({...eventInfo, endingTime: e.target.value})}
+                      onChange={(e) => handleFieldChange('endingTime', e.target.value)}
                       required
                     />
                   </div>
@@ -392,7 +511,7 @@ const EventForm = () => {
                       className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition"
                       placeholder="Enter total number of seats"
                       value={eventInfo.total_seats}
-                      onChange={(e) => setEventInfo({...eventInfo, total_seats: parseInt(e.target.value) || 0})}
+                      onChange={(e) => handleFieldChange('total_seats', parseInt(e.target.value) || 0)}
                       min="1"
                       required
                     />
@@ -408,7 +527,7 @@ const EventForm = () => {
                       className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:outline-none transition"
                       placeholder="Enter event price"
                       value={eventInfo.price}
-                      onChange={(e) => setEventInfo({...eventInfo, price: parseInt(e.target.value) || 0})}
+                      onChange={(e) => handleFieldChange('price', parseInt(e.target.value) || 0)}
                       min="0"
                     />
                     <p className="text-xs text-gray-500 mt-1">Set to 0 for free events</p>
@@ -514,6 +633,16 @@ const EventForm = () => {
                       </div>
                       
                       <div className="mt-6 pt-6 border-t border-gray-200">
+                        {/* Error Display */}
+                        {error && (
+                          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="flex items-center">
+                              <i className="fas fa-exclamation-circle text-red-500 mr-2"></i>
+                              <p className="text-sm text-red-700">{error}</p>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center mb-4">
                           <i className="fas fa-exclamation-circle text-yellow-500 mr-2"></i>
                           <p className="text-sm text-gray-600">Please review all details before publishing.</p>
@@ -522,6 +651,7 @@ const EventForm = () => {
                         <button 
                           onClick={() => setShowPreview(true)}
                           className="w-full mb-3 px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition flex items-center justify-center !rounded-button whitespace-nowrap cursor-pointer"
+                          disabled={isLoading}
                         >
                           <i className="fas fa-eye mr-2"></i>
                           Preview Event
@@ -529,14 +659,24 @@ const EventForm = () => {
                         
                         <button 
                           onClick={handlePublish}
-                          className="w-full px-6 py-3 rounded-lg text-white font-medium flex items-center justify-center !rounded-button whitespace-nowrap cursor-pointer"
+                          disabled={isLoading}
+                          className="w-full px-6 py-3 rounded-lg text-white font-medium flex items-center justify-center !rounded-button whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{ 
                             backgroundColor: themeColor,
                             boxShadow: `0 0 20px ${themeColor}80`
                           }}
                         >
-                          <i className="fas fa-paper-plane mr-2"></i>
-                          Publish Event
+                          {isLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-paper-plane mr-2"></i>
+                              Publish Event
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -690,10 +830,13 @@ const EventForm = () => {
           </div>
           <div>
             <h4 className="font-medium">Success!</h4>
-            <p className="text-sm text-gray-600">🎉 Event has been published!</p>
+            <p className="text-sm text-gray-600">{successMessage}</p>
           </div>
           <button 
-            onClick={() => setShowSuccess(false)}
+            onClick={() => {
+              setShowSuccess(false);
+              setSuccessMessage('');
+            }}
             className="ml-4 text-gray-400 hover:text-gray-600 cursor-pointer"
           >
             <i className="fas fa-times"></i>
