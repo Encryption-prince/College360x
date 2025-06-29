@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSort } from '@fortawesome/free-solid-svg-icons';
 import { Menu, Transition } from '@headlessui/react';
 import { PencilIcon, ArrowDownTrayIcon, DocumentArrowUpIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { useAptos } from '../components/AptosWalletProvider';
 import WalletSelector from '../components/WalletSelector';
 import BlockchainSecurityBadge from '../components/BlockchainSecurityBadge';
 import { 
@@ -15,7 +15,9 @@ import {
     hashSensitiveData, 
     generateReportId,
     verifyReportOnBlockchain,
-    createProofOfExistence
+    createProofOfExistence,
+    verifyTransaction,
+    getTransactionUrl
 } from '../utils/aptosUtils';
 
 const roles = ['Student', 'Faculty', 'Staff', 'Other'];
@@ -25,7 +27,7 @@ const initialWitness = { name: '', contactInfo: '', isAnonymous: false };
 
 const RaggingReport = () => {
     // Wallet state
-    const { connected, account, signAndSubmitTransaction } = useWallet();
+    const { isConnected, account, signAndSubmitTransaction } = useAptos();
     
     // Form state
     const [form, setForm] = useState({
@@ -49,6 +51,8 @@ const RaggingReport = () => {
         transactionHash: null,
         verificationStatus: 'pending'
     });
+    const [transactionDetails, setTransactionDetails] = useState(null);
+    const [verifying, setVerifying] = useState(false);
 
     // Handlers for dynamic fields
     const addPerson = () => setForm(f => ({ ...f, involvedPersons: [...f.involvedPersons, { ...initialPerson }] }));
@@ -87,6 +91,24 @@ const RaggingReport = () => {
         e.preventDefault();
         setSubmitting(true);
         setMessage(null);
+
+        // Debug wallet connection
+        console.log('=== WALLET DEBUG ===');
+        console.log('connected:', isConnected);
+        console.log('account:', account);
+        console.log('account.address:', account?.address);
+        console.log('signAndSubmitTransaction:', typeof signAndSubmitTransaction);
+        console.log('===================');
+
+        // Clear previous blockchain status when starting a new submission
+        setBlockchainStatus({
+            isOnBlockchain: false,
+            isVerified: false,
+            reportHash: null,
+            transactionHash: null,
+            verificationStatus: 'pending',
+            isSimulated: false
+        });
 
         try {
             // Generate report ID and hash
@@ -129,25 +151,43 @@ const RaggingReport = () => {
 
             // If wallet is connected, submit to blockchain
             let blockchainResult = null;
-            if (connected && account && !draft) {
+            if (isConnected && account && !draft) {
                 try {
+                    console.log('Submitting to blockchain...', { isConnected, account: account?.address });
                     blockchainResult = await submitReportToBlockchain(form, { signAndSubmitTransaction });
+                    console.log('Blockchain result:', blockchainResult);
+                    
                     setBlockchainStatus({
                         isOnBlockchain: true,
                         isVerified: false,
                         reportHash: reportHash,
                         transactionHash: blockchainResult.transactionHash,
-                        verificationStatus: 'pending'
+                        verificationStatus: 'pending',
+                        isSimulated: blockchainResult.isSimulated || false
+                    });
+                    
+                    console.log('Blockchain status updated:', {
+                        isOnBlockchain: true,
+                        transactionHash: blockchainResult.transactionHash,
+                        isSimulated: blockchainResult.isSimulated
                     });
                 } catch (blockchainError) {
                     console.error('Blockchain submission failed:', blockchainError);
                     // Continue with backend submission even if blockchain fails
                 }
+            } else {
+                console.log('Wallet not connected or draft mode:', { isConnected, account: account?.address, draft });
+                if (!isConnected) {
+                    setMessage({ 
+                        type: 'warning', 
+                        text: `Report submitted to backend successfully! To submit to blockchain for enhanced security, please connect your wallet first.` 
+                    });
+                }
             }
 
             setMessage({ 
                 type: 'success', 
-                text: `Report ${draft ? 'saved as draft' : 'submitted'}! ID: ${reportId}${blockchainResult ? ' | Blockchain TX: ' + blockchainResult.transactionHash.substring(0, 10) + '...' : ''}` 
+                text: `Report ${draft ? 'saved as draft' : 'submitted'}! ID: ${reportId}${blockchainResult ? (blockchainResult.isSimulated ? ' | Blockchain simulation completed' : ' | Blockchain TX: ' + blockchainResult.transactionHash.substring(0, 10) + '...') : ''}` 
             });
 
             // Reset form
@@ -168,6 +208,41 @@ const RaggingReport = () => {
             setMessage({ type: 'error', text: 'Network error: ' + err.message });
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Verify transaction on blockchain
+    const handleVerifyTransaction = async () => {
+        if (!blockchainStatus.transactionHash) return;
+        
+        setVerifying(true);
+        try {
+            const result = await verifyTransaction(blockchainStatus.transactionHash);
+            setTransactionDetails(result);
+            
+            if (result.success) {
+                setBlockchainStatus(prev => ({
+                    ...prev,
+                    isVerified: true,
+                    verificationStatus: 'verified'
+                }));
+                setMessage({ 
+                    type: 'success', 
+                    text: `Transaction verified! Status: ${result.status}` 
+                });
+            } else {
+                setMessage({ 
+                    type: 'error', 
+                    text: `Transaction verification failed: ${result.error}` 
+                });
+            }
+        } catch (error) {
+            setMessage({ 
+                type: 'error', 
+                text: `Verification error: ${error.message}` 
+            });
+        } finally {
+            setVerifying(false);
         }
     };
 
@@ -205,7 +280,122 @@ const RaggingReport = () => {
                 transactionHash={blockchainStatus.transactionHash}
                 verificationStatus={blockchainStatus.verificationStatus}
                 showDetails={true}
+                isSimulated={blockchainStatus.isSimulated}
             />
+
+            {/* Transaction Verification Section */}
+            {blockchainStatus.transactionHash && (
+                <div className={`bg-gradient-to-r ${blockchainStatus.isSimulated ? 'from-blue-50 to-purple-50 border-blue-200' : 'from-green-50 to-blue-50 border-green-200'} border rounded-xl p-6 mb-6`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <ShieldCheckIcon className={`w-6 h-6 ${blockchainStatus.isSimulated ? 'text-blue-600' : 'text-green-600'}`} />
+                            <div>
+                                <h3 className={`font-semibold ${blockchainStatus.isSimulated ? 'text-blue-900' : 'text-green-900'}`}>
+                                    {blockchainStatus.isSimulated ? 'Simulation Complete' : 'Transaction Verification'}
+                                </h3>
+                                <p className={`text-sm ${blockchainStatus.isSimulated ? 'text-blue-700' : 'text-green-700'}`}>
+                                    {blockchainStatus.isSimulated ? 'Report submitted (simulated for testing)' : 'Verify your transaction on the blockchain'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {!blockchainStatus.isSimulated && (
+                                <button
+                                    onClick={handleVerifyTransaction}
+                                    disabled={verifying}
+                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium rounded-lg px-4 py-2 shadow"
+                                >
+                                    {verifying ? (
+                                        <>
+                                            <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                            Verifying...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ShieldCheckIcon className="w-4 h-4" />
+                                            Verify Transaction
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                            {blockchainStatus.isSimulated ? (
+                                <div className="flex items-center gap-2 bg-blue-600 text-white font-medium rounded-lg px-4 py-2">
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                    Simulation Complete
+                                </div>
+                            ) : (
+                                <a
+                                    href={getTransactionUrl(blockchainStatus.transactionHash)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 shadow"
+                                >
+                                    <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                                    View on Explorer
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Transaction Details */}
+                    {transactionDetails && !blockchainStatus.isSimulated && (
+                        <div className="bg-white rounded-lg p-4 border border-green-200">
+                            <h4 className="font-semibold text-green-900 mb-2">Transaction Details</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="font-medium text-gray-600">Status:</span>
+                                    <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                                        transactionDetails.status === 'success' 
+                                            ? 'bg-green-100 text-green-800' 
+                                            : 'bg-red-100 text-red-800'
+                                    }`}>
+                                        {transactionDetails.status}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Gas Used:</span>
+                                    <span className="ml-2 font-mono">{transactionDetails.gasUsed || 'N/A'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Timestamp:</span>
+                                    <span className="ml-2">{transactionDetails.timestamp ? new Date(transactionDetails.timestamp).toLocaleString() : 'N/A'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Transaction Hash:</span>
+                                    <span className="ml-2 font-mono text-xs break-all">{blockchainStatus.transactionHash}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Simulation Details */}
+                    {blockchainStatus.isSimulated && (
+                        <div className="bg-white rounded-lg p-4 border border-blue-200">
+                            <h4 className="font-semibold text-blue-900 mb-2">Simulation Details</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="font-medium text-gray-600">Status:</span>
+                                    <span className="ml-2 px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Simulated
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Report Hash:</span>
+                                    <span className="ml-2 font-mono text-xs break-all">{blockchainStatus.reportHash}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Mock Transaction Hash:</span>
+                                    <span className="ml-2 font-mono text-xs break-all">{blockchainStatus.transactionHash}</span>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Note:</span>
+                                    <span className="ml-2 text-blue-600">Smart contract deployment pending</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Wallet Connection Section */}
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 mb-6">
@@ -218,7 +408,7 @@ const RaggingReport = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        {connected ? (
+                        {isConnected ? (
                             <div className="flex items-center gap-2">
                                 <CheckCircleIcon className="w-5 h-5 text-green-600" />
                                 <span className="text-sm font-medium text-green-700">Connected</span>
@@ -239,7 +429,14 @@ const RaggingReport = () => {
                     </div>
                 </div>
                 
-                {connected && (
+                {/* Debug wallet connection status */}
+                <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="text-xs text-gray-600">
+                        <strong>Debug Info:</strong> connected={isConnected.toString()}, account={account ? 'defined' : 'undefined'}, address={account?.address || 'none'}
+                    </div>
+                </div>
+                
+                {isConnected && (
                     <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                         <div className="flex items-center gap-2 text-sm text-green-700">
                             <LockClosedIcon className="w-4 h-4" />
@@ -250,7 +447,13 @@ const RaggingReport = () => {
             </div>
 
             {message && (
-                <div className={`mb-4 px-4 py-3 rounded-lg ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{message.text}</div>
+                <div className={`mb-4 px-4 py-3 rounded-lg ${
+                    message.type === 'success' ? 'bg-green-100 text-green-800' : 
+                    message.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                }`}>
+                    {message.text}
+                </div>
             )}
 
             <form onSubmit={e => handleSubmit(e, false)}>

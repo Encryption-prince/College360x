@@ -7,10 +7,31 @@ const BlockchainSecurityBadge = ({
   reportHash, 
   transactionHash, 
   verificationStatus = 'pending',
-  showDetails = false 
+  showDetails = false,
+  isSimulated = false
 }) => {
+  // Debug logging
+  console.log('BlockchainSecurityBadge props:', {
+    isVerified,
+    isOnBlockchain,
+    reportHash,
+    transactionHash,
+    verificationStatus,
+    showDetails,
+    isSimulated
+  });
+
   const getStatusConfig = () => {
-    if (isVerified && isOnBlockchain) {
+    if (isSimulated && isOnBlockchain) {
+      return {
+        icon: CheckCircleIcon,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        text: 'Blockchain Simulation',
+        description: 'Report submitted (simulated for testing)'
+      };
+    } else if (isVerified && isOnBlockchain) {
       return {
         icon: CheckCircleIcon,
         color: 'text-green-600',

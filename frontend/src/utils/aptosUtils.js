@@ -55,7 +55,25 @@ export const submitReportToBlockchain = async (reportData, wallet) => {
   try {
     const reportHash = createReportHash(reportData);
     
-    // Create the payload for the blockchain transaction
+    // For now, since the smart contract isn't deployed yet, we'll simulate the submission
+    // This allows testing the UI flow while the contract is being developed
+    console.log("Simulating blockchain submission for testing...");
+    
+    // Simulate transaction delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Generate a mock transaction hash for testing
+    const mockTransactionHash = "0x" + CryptoJS.lib.WordArray.random(32).toString();
+    
+    return {
+      success: true,
+      transactionHash: mockTransactionHash,
+      reportHash: reportHash,
+      isSimulated: true // Flag to indicate this is a simulation
+    };
+    
+    /* 
+    // Uncomment this section when the smart contract is deployed
     const payload = {
       type: "entry_function_payload",
       function: `${MODULE_ADDRESS}::${MODULE_NAME}::submit_report`,
@@ -87,6 +105,7 @@ export const submitReportToBlockchain = async (reportData, wallet) => {
       transactionHash: transaction.hash,
       reportHash: reportHash
     };
+    */
   } catch (error) {
     console.error("Error submitting to blockchain:", error);
     throw new Error(`Blockchain submission failed: ${error.message}`);
@@ -158,4 +177,34 @@ export const createProofOfExistence = (reportData) => {
     timestamp: timestamp,
     reportHash: reportHash
   };
+};
+
+// Verify transaction on blockchain
+export const verifyTransaction = async (transactionHash) => {
+  try {
+    const transaction = await aptos.getTransactionByHash({ transactionHash });
+    
+    return {
+      success: true,
+      transaction: transaction,
+      status: transaction.success ? 'success' : 'failed',
+      timestamp: transaction.timestamp,
+      gasUsed: transaction.gas_used,
+      gasUnitPrice: transaction.gas_unit_price
+    };
+  } catch (error) {
+    console.error("Error verifying transaction:", error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+// Get transaction URL for Aptos Explorer
+export const getTransactionUrl = (transactionHash, network = "testnet") => {
+  const baseUrl = network === "mainnet" 
+    ? "https://explorer.aptoslabs.com" 
+    : "https://explorer.aptoslabs.com";
+  return `${baseUrl}/txn/${transactionHash}`;
 }; 
