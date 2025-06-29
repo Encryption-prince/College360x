@@ -5,7 +5,7 @@ import { HomeIcon, RocketLaunchIcon, BuildingLibraryIcon, CalendarDaysIcon, Excl
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 
-const navItems = [
+const getNavItems = (isTeacher) => [
   {
     label: 'Home',
     icon: <HomeIcon className="w-6 h-6" />,
@@ -34,7 +34,8 @@ const navItems = [
     icon: <ExclamationTriangleIcon className="w-6 h-6" />,
     children: [
       { label: 'Report Incident', to: '/ragging' },
-      { label: 'Report History', to: '/ragging/history' },
+      // Only show ragging history for teachers
+      ...(isTeacher ? [{ label: 'Report History', to: '/ragging/history' }] : []),
     ],
   },
   {
@@ -60,33 +61,51 @@ const navItems = [
     to: '/leaderboard',
   },
   {
- label: 'Lost & Found',
- icon: <CubeIcon className="w-6 h-6" />, 
- to: '/LostandFound',
-},
-{
- label: 'Meme Page',
- icon: <FaceSmileIcon className="w-6 h-6" />,
- to: '/MemePage',
-},
-{
- label: 'Gallery',
- icon: <PhotoIcon className="w-6 h-6" />,
- to: '/gallery',
-},
+    label: 'Lost & Found',
+    icon: <CubeIcon className="w-6 h-6" />, 
+    to: '/LostandFound',
+  },
+  {
+    label: 'Meme Page',
+    icon: <FaceSmileIcon className="w-6 h-6" />,
+    to: '/MemePage',
+  },
+  {
+    label: 'Gallery',
+    icon: <PhotoIcon className="w-6 h-6" />,
+    to: '/gallery',
+  },
 ];
 
 function Sidebar({ collapsed, setCollapsed }) {
   const location = useLocation();
   const [openDropdown, setOpenDropdown] = useState(null);
-  const { isLoggedIn, logout } = useAuth();
+  const { isLoggedIn, logout, isTeacher, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Get nav items based on teacher status
+  const navItems = getNavItems(isTeacher);
 
   const handleDropdown = (label) => {
     if (!collapsed) {
       setOpenDropdown(openDropdown === label ? null : label);
     }
   };
+
+  // Don't render sidebar while loading authentication
+  if (isLoading) {
+    return (
+      <aside className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 flex flex-col shadow-lg z-40 transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
+        <div className="flex items-center justify-center h-20 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          {!collapsed && <span className="text-2xl font-bold text-gray-800 tracking-wide font-poppins">MyCollegeMate</span>}
+          {collapsed && <span className="text-2xl font-bold text-blue-600 font-poppins">M</span>}
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 flex flex-col shadow-lg z-40 transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>

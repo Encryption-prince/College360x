@@ -38,6 +38,7 @@ const RaggingReport = () => {
         description: '',
         reportAsSelf: false,
         status: 'PENDING',
+        reportId: null,
         involvedPersons: [{ ...initialPerson }],
         witnesses: [{ ...initialWitness }],
         evidences: [''] // Evidence URLs as strings
@@ -53,6 +54,8 @@ const RaggingReport = () => {
     });
     const [transactionDetails, setTransactionDetails] = useState(null);
     const [verifying, setVerifying] = useState(false);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [statusUpdateMessage, setStatusUpdateMessage] = useState(null);
 
     // Handlers for dynamic fields
     const addPerson = () => setForm(f => ({ ...f, involvedPersons: [...f.involvedPersons, { ...initialPerson }] }));
@@ -149,6 +152,11 @@ const RaggingReport = () => {
 
             const backendData = await backendRes.json();
 
+            // Store the report ID from backend response for future status updates
+            if (backendData.id || backendData.reportId) {
+                setForm(prev => ({ ...prev, reportId: backendData.id || backendData.reportId }));
+            }
+
             // If wallet is connected, submit to blockchain
             let blockchainResult = null;
             if (isConnected && account && !draft) {
@@ -199,6 +207,7 @@ const RaggingReport = () => {
                 description: '',
                 reportAsSelf: false,
                 status: 'PENDING',
+                reportId: reportId,
                 involvedPersons: [{ ...initialPerson }],
                 witnesses: [{ ...initialWitness }],
                 evidences: ['']
@@ -243,6 +252,55 @@ const RaggingReport = () => {
             });
         } finally {
             setVerifying(false);
+        }
+    };
+
+    // Update report status
+    const handleUpdateStatus = async (newStatus) => {
+        setUpdatingStatus(true);
+        setStatusUpdateMessage(null);
+        
+        try {
+            // Use the report ID from form state
+            const reportId = form.reportId;
+            
+            if (!reportId) {
+                setStatusUpdateMessage({ 
+                    type: 'error', 
+                    text: 'Report ID not found. Please submit the report first.' 
+                });
+                return;
+            }
+            
+            const response = await fetch(`https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports/${reportId}/status?newStatus=${encodeURIComponent(newStatus)}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setStatusUpdateMessage({ 
+                    type: 'success', 
+                    text: `Status updated successfully to ${newStatus}` 
+                });
+                // Update the form status
+                setForm(prev => ({ ...prev, status: newStatus }));
+            } else {
+                setStatusUpdateMessage({ 
+                    type: 'error', 
+                    text: data.message || 'Failed to update status' 
+                });
+            }
+        } catch (error) {
+            setStatusUpdateMessage({ 
+                type: 'error', 
+                text: `Network error: ${error.message}` 
+            });
+        } finally {
+            setUpdatingStatus(false);
         }
     };
 
@@ -453,6 +511,92 @@ const RaggingReport = () => {
                     'bg-red-100 text-red-800'
                 }`}>
                     {message.text}
+                </div>
+            )}
+
+            {/* Status Update Section */}
+            {form.reportId && (
+                <div className="bg-white rounded-2xl shadow p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="font-semibold text-lg text-gray-900">Report Status</h3>
+                            <p className="text-sm text-gray-600">Report ID: <span className="font-mono text-xs">{form.reportId}</span></p>
+                            <p className="text-sm text-gray-600">Current status: <span className="font-medium">{form.status}</span></p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                form.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                form.status === 'UNDER_INVESTIGATION' ? 'bg-orange-100 text-orange-800' :
+                                form.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                                form.status === 'DRAFT' ? 'bg-gray-100 text-gray-800' :
+                                'bg-blue-100 text-blue-800'
+                            }`}>
+                                {form.status}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    {statusUpdateMessage && (
+                        <div className={`mb-4 px-4 py-3 rounded-lg ${
+                            statusUpdateMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                            {statusUpdateMessage.text}
+                        </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            type="button"
+                            onClick={() => handleUpdateStatus('PENDING')}
+                            disabled={updatingStatus || form.status === 'PENDING'}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                form.status === 'PENDING' 
+                                    ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed' 
+                                    : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                            }`}
+                        >
+                            {updatingStatus ? 'Updating...' : 'Set to Pending'}
+                        </button>
+                        
+                        <button
+                            type="button"
+                            onClick={() => handleUpdateStatus('UNDER_INVESTIGATION')}
+                            disabled={updatingStatus || form.status === 'UNDER_INVESTIGATION'}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                form.status === 'UNDER_INVESTIGATION' 
+                                    ? 'bg-orange-100 text-orange-800 cursor-not-allowed' 
+                                    : 'bg-orange-500 hover:bg-orange-600 text-white'
+                            }`}
+                        >
+                            {updatingStatus ? 'Updating...' : 'Set to Under Investigation'}
+                        </button>
+                        
+                        <button
+                            type="button"
+                            onClick={() => handleUpdateStatus('RESOLVED')}
+                            disabled={updatingStatus || form.status === 'RESOLVED'}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                form.status === 'RESOLVED' 
+                                    ? 'bg-green-100 text-green-800 cursor-not-allowed' 
+                                    : 'bg-green-500 hover:bg-green-600 text-white'
+                            }`}
+                        >
+                            {updatingStatus ? 'Updating...' : 'Set to Resolved'}
+                        </button>
+                        
+                        <button
+                            type="button"
+                            onClick={() => handleUpdateStatus('DRAFT')}
+                            disabled={updatingStatus || form.status === 'DRAFT'}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                form.status === 'DRAFT' 
+                                    ? 'bg-gray-100 text-gray-800 cursor-not-allowed' 
+                                    : 'bg-gray-500 hover:bg-gray-600 text-white'
+                            }`}
+                        >
+                            {updatingStatus ? 'Updating...' : 'Set to Draft'}
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -741,6 +885,8 @@ export function RaggingHistoryPage() {
     const [sortBy, setSortBy] = useState('id');
     const [sortOrder, setSortOrder] = useState('asc');
     const [openMenu, setOpenMenu] = useState(null);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [statusUpdateMessage, setStatusUpdateMessage] = useState(null);
 
     const statusColors = {
         'Draft': 'bg-gray-100 text-gray-700',
@@ -833,21 +979,32 @@ export function RaggingHistoryPage() {
 
     // PUT: Update report status
     const updateReportStatus = async (id, newStatus) => {
+        setUpdatingStatus(true);
         setStatusMessage(null);
+        setStatusUpdateMessage(null);
+        
         try {
             const res = await fetch(`https://careful-vikky-koyebdeployacc1-6fac48b5.koyeb.app/api/ragging-reports/${id}/status?newStatus=${encodeURIComponent(newStatus)}`, {
                 method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
             const data = await res.json();
             if (res.ok) {
-                setStatusMessage({ type: 'success', text: 'Status updated successfully.' });
+                setStatusMessage({ type: 'success', text: `Status updated successfully to ${newStatus}.` });
+                setStatusUpdateMessage({ type: 'success', text: `Status updated to ${newStatus}` });
                 // Refresh reports
                 setReports(reports => reports.map(r => r.id === id ? { ...r, status: newStatus } : r));
             } else {
-                setStatusMessage({ type: 'error', text: data.error || 'Failed to update status.' });
+                setStatusMessage({ type: 'error', text: data.message || 'Failed to update status.' });
+                setStatusUpdateMessage({ type: 'error', text: data.message || 'Failed to update status.' });
             }
         } catch (err) {
             setStatusMessage({ type: 'error', text: 'Network error: ' + err.message });
+            setStatusUpdateMessage({ type: 'error', text: 'Network error: ' + err.message });
+        } finally {
+            setUpdatingStatus(false);
         }
     };
 
@@ -1022,33 +1179,62 @@ export function RaggingHistoryPage() {
                                                                 </button>
                                                             )}
                                                         </Menu.Item>
-                                                        {(r.status === 'Draft') && (
-                                                            <Menu.Item>
-                                                                {() => (
-                                                                    <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700">
-                                                                        <PencilIcon className="w-5 h-5 mr-2" /> Edit Draft
-                                                                    </button>
-                                                                )}
-                                                            </Menu.Item>
-                                                        )}
-                                                        {(r.status === 'Pending') && (
-                                                            <>
-                                                                <Menu.Item>
-                                                                    {() => (
-                                                                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700" onClick={() => updateReportStatus(r.id, 'Pending')}>
-                                                                            <ArrowPathIcon className="w-5 h-5 mr-2" /> Update
-                                                                        </button>
-                                                                    )}
-                                                                </Menu.Item>
-                                                                <Menu.Item>
-                                                                    {() => (
-                                                                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700" onClick={() => updateReportStatus(r.id, 'Withdrawn')}>
-                                                                            <XMarkIcon className="w-5 h-5 mr-2" /> Withdraw Report
-                                                                        </button>
-                                                                    )}
-                                                                </Menu.Item>
-                                                            </>
-                                                        )}
+                                                        
+                                                        {/* Status Update Section */}
+                                                        <div className="border-t border-gray-100 my-1"></div>
+                                                        <div className="px-3 py-1 text-xs font-medium text-gray-500">Update Status</div>
+                                                        
+                                                        <Menu.Item>
+                                                            {() => (
+                                                                <button 
+                                                                    className={`flex items-center w-full px-4 py-2 text-sm ${r.status === 'PENDING' ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                                                                    onClick={() => r.status !== 'PENDING' && updateReportStatus(r.id, 'PENDING')}
+                                                                    disabled={r.status === 'PENDING' || updatingStatus}
+                                                                >
+                                                                    <ArrowPathIcon className="w-5 h-5 mr-2" /> 
+                                                                    {updatingStatus ? 'Updating...' : 'Set to Pending'}
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                        
+                                                        <Menu.Item>
+                                                            {() => (
+                                                                <button 
+                                                                    className={`flex items-center w-full px-4 py-2 text-sm ${r.status === 'UNDER_INVESTIGATION' ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                                                                    onClick={() => r.status !== 'UNDER_INVESTIGATION' && updateReportStatus(r.id, 'UNDER_INVESTIGATION')}
+                                                                    disabled={r.status === 'UNDER_INVESTIGATION' || updatingStatus}
+                                                                >
+                                                                    <ArrowPathIcon className="w-5 h-5 mr-2" /> 
+                                                                    {updatingStatus ? 'Updating...' : 'Set to Under Investigation'}
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                        
+                                                        <Menu.Item>
+                                                            {() => (
+                                                                <button 
+                                                                    className={`flex items-center w-full px-4 py-2 text-sm ${r.status === 'RESOLVED' ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                                                                    onClick={() => r.status !== 'RESOLVED' && updateReportStatus(r.id, 'RESOLVED')}
+                                                                    disabled={r.status === 'RESOLVED' || updatingStatus}
+                                                                >
+                                                                    <CheckCircleIcon className="w-5 h-5 mr-2" /> 
+                                                                    {updatingStatus ? 'Updating...' : 'Set to Resolved'}
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                        
+                                                        <Menu.Item>
+                                                            {() => (
+                                                                <button 
+                                                                    className={`flex items-center w-full px-4 py-2 text-sm ${r.status === 'DRAFT' ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                                                                    onClick={() => r.status !== 'DRAFT' && updateReportStatus(r.id, 'DRAFT')}
+                                                                    disabled={r.status === 'DRAFT' || updatingStatus}
+                                                                >
+                                                                    <PencilIcon className="w-5 h-5 mr-2" /> 
+                                                                    {updatingStatus ? 'Updating...' : 'Set to Draft'}
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
                                                     </div>
                                                 </Menu.Items>
                                             </Transition>
