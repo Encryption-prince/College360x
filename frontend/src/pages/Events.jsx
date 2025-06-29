@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CalendarDaysIcon, MapPinIcon, ClockIcon, MagnifyingGlassIcon, Squares2X2Icon, CalendarIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon, HeartIcon as HeartOutlineIcon, ShareIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 // eslint-disable-next-line no-unused-vars
@@ -22,87 +22,30 @@ const locations = ['All Locations', 'Innovation Center', 'Main Auditorium', 'Cam
 const sortOptions = ['Date (Newest)', 'Date (Oldest)', 'Most Popular', 'A-Z', 'Z-A'];
 const quickFilters = ['Today', 'This Week', 'This Month', 'Academic', 'Social', 'Sports', 'Cultural'];
 
-const mockEvents = [
-  {
-    id: 1,
-    club: 'Tech Society',
-    clubShort: 'TS',
-    title: 'Tech Talk: AI Revolution',
-    description: 'A deep dive into the future of AI and its impact on society.',
-    date: '2025-06-25',
-    time: '3:00 PM - 5:00 PM',
-    location: 'Engineering Building, Room 305',
-    category: 'Technology',
-    icon: <SparklesIcon className="w-8 h-8 text-green-500" />, // Example icon
-  },
-  {
-    id: 2,
-    club: 'Debate Club',
-    clubShort: 'DC',
-    title: 'Annual Debate Competition',
-    description: 'Compete with the best debaters on campus.',
-    date: '2025-06-28',
-    time: '1:00 PM - 4:00 PM',
-    location: 'Arts Center Auditorium',
-    category: 'Academic',
-    icon: <SparklesIcon className="w-8 h-8 text-blue-500" />, // Example icon
-  },
-  {
-    id: 3,
-    club: 'Music Society',
-    clubShort: 'MS',
-    title: 'Summer Music Festival',
-    description: 'Enjoy performances by student bands and artists.',
-    date: '2025-07-05',
-    time: '5:00 PM - 10:00 PM',
-    location: 'Campus Green',
-    category: 'Entertainment',
-    icon: <SparklesIcon className="w-8 h-8 text-yellow-500" />, // Example icon
-  },
-  {
-    id: 4,
-    club: 'Business Club',
-    clubShort: 'BC',
-    title: 'Entrepreneurship Workshop',
-    description: 'Learn how to launch your own startup.',
-    date: '2025-07-10',
-    time: '2:00 PM - 5:00 PM',
-    location: 'Business School, Room 120',
-    category: 'Career',
-    icon: <SparklesIcon className="w-8 h-8 text-violet-500" />, // Example icon
-  },
-  {
-    id: 5,
-    club: 'Photography Club',
-    clubShort: 'PC',
-    title: 'Photography Exhibition',
-    description: 'Showcase your best campus moments.',
-    date: '2025-07-15',
-    time: '11:00 AM - 6:00 PM',
-    location: 'Student Center Gallery',
-    category: 'Arts',
-    icon: <SparklesIcon className="w-8 h-8 text-blue-400" />, // Example icon
-  },
-  {
-    id: 6,
-    club: 'Community Service Club',
-    clubShort: 'CSC',
-    title: 'Charity Run',
-    description: 'Join the run for a good cause!',
-    date: '2025-07-20',
-    time: '8:00 AM - 11:00 AM',
-    location: 'Campus Track',
-    category: 'Sports',
-    icon: <SparklesIcon className="w-8 h-8 text-green-400" />, // Example icon
-  },
-].map((event, idx) => ({
-  ...event,
-  image: eventImages[idx % eventImages.length],
-  registration: {
-    current: 100 + idx * 50,
-    max: 200 + idx * 100,
-  },
-}));
+// Mock data for dropdowns - using IDs instead of names
+const venues = [
+  { id: 1, name: 'Venue ID: 1' },
+  { id: 2, name: 'Venue ID: 2' },
+  { id: 3, name: 'Venue ID: 3' },
+  { id: 4, name: 'Venue ID: 4' },
+  { id: 5, name: 'Venue ID: 5' }
+];
+
+const clubs = [
+  { id: 1, name: 'Club ID: 1' },
+  { id: 2, name: 'Club ID: 2' },
+  { id: 3, name: 'Club ID: 3' },
+  { id: 4, name: 'Club ID: 4' },
+  { id: 5, name: 'Club ID: 5' }
+];
+
+const colleges = [
+  { id: 1, name: 'College ID: 1' },
+  { id: 2, name: 'College ID: 2' },
+  { id: 3, name: 'College ID: 3' },
+  { id: 4, name: 'College ID: 4' },
+  { id: 5, name: 'College ID: 5' }
+];
 
 const categories = ['All Categories', 'Technology', 'Academic', 'Entertainment', 'Career', 'Arts', 'Sports'];
 
@@ -178,6 +121,77 @@ const Events = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  // API state management
+  const [events, setEvents] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Fetch events from API
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      const response = await fetch('http://localhost:4000/api/v1/event', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('API Response:', result); // For debugging
+
+      if (result.success && result.data) {
+        // Transform API data to match the expected format
+        const transformedEvents = Array.isArray(result.data) ? result.data : [result.data];
+        const formattedEvents = transformedEvents.map((event, idx) => ({
+          id: event.id,
+          club: clubs.find(c => c.id == event.clubId)?.name || `Club ID: ${event.clubId}`,
+          clubShort: clubs.find(c => c.id == event.clubId)?.name?.substring(0, 2) || 'CL',
+          title: event.name,
+          description: `Event organized by ${clubs.find(c => c.id == event.clubId)?.name || 'our club'}. Join us for this exciting event!`,
+          date: new Date(event.startingTime).toISOString().split('T')[0],
+          time: `${new Date(event.startingTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(event.endingTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          location: venues.find(v => v.id == event.venueId)?.name || `Venue ID: ${event.venueId}`,
+          category: 'Technology', // Default category since API doesn't provide it
+          icon: <SparklesIcon className="w-8 h-8 text-green-500" />,
+          image: eventImages[idx % eventImages.length],
+          registration: {
+            current: event.registration_count || 0,
+            max: parseInt(event.total_seats) || 100,
+          },
+          price: parseInt(event.price) || 0,
+          permission: event.permission || false,
+          startingTime: event.startingTime,
+          endingTime: event.endingTime,
+          collegeId: event.collegeId,
+          venueId: event.venueId,
+          clubId: event.clubId,
+        }));
+        
+        setEvents(formattedEvents);
+      } else {
+        setError(result.message || 'Failed to fetch events');
+      }
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
   // Helper for week filter
   function isThisWeek(dateStr) {
@@ -196,7 +210,7 @@ const Events = () => {
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }
   // Filter logic (add location and quick filter logic)
-  let filteredEvents = mockEvents.filter(event => {
+  let filteredEvents = events.filter(event => {
     const categoryMatch = selectedCategory === 'All Categories' || event.category === selectedCategory;
     const locationMatch = selectedLocation === 'All Locations' || event.location === selectedLocation;
     const searchMatch = event.title.toLowerCase().includes(search.toLowerCase()) || event.description.toLowerCase().includes(search.toLowerCase()) || event.location.toLowerCase().includes(search.toLowerCase());
@@ -217,8 +231,11 @@ const Events = () => {
 
   // Calendar event mapping
   const eventsByDate = {};
-  mockEvents.forEach(event => {
-    const [y, m, d] = event.date.split('-').map(Number);
+  events.forEach(event => {
+    const eventDate = new Date(event.date);
+    const y = eventDate.getFullYear();
+    const m = eventDate.getMonth() + 1; // getMonth() is 0-indexed
+    const d = eventDate.getDate();
     if (y === calendarYear && m === calendarMonth + 1) {
       if (!eventsByDate[d]) eventsByDate[d] = [];
       eventsByDate[d].push(event);
@@ -347,6 +364,16 @@ const Events = () => {
           </div>
           <div className="flex gap-2 mt-4 md:mt-2">
             <button
+              onClick={fetchEvents}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-150 border bg-white border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <svg className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {isLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-150 border ${view === 'grid' ? 'bg-purple-50 border-purple-600 text-purple-700' : 'bg-white border-gray-200 text-gray-500'}`}
               onClick={() => setView('grid')}
             >
@@ -404,152 +431,198 @@ const Events = () => {
             </button>
           ))}
         </div>
-        <div className="mb-2 text-gray-700 text-sm font-medium">Showing {filteredEvents.length} events</div>
+        <div className="mb-2 text-gray-700 text-sm font-medium">
+          {isLoading ? 'Loading events...' : error ? 'Error loading events' : `Showing ${filteredEvents.length} events`}
+        </div>
       </div>
       {/* Event Cards/List View */}
       <div className="max-w-7xl mx-auto w-full px-4 flex-1">
-        <AnimatePresence mode="wait">
-          {view === 'grid' ? (
-            <motion.div
-              key="grid"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading events...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !isLoading && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <div className="text-red-500 text-2xl mb-2">⚠️</div>
+            <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Events</h3>
+            <p className="text-red-700 mb-4">{error}</p>
+            <button 
+              onClick={fetchEvents} 
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
             >
-              {filteredEvents.map(event => (
-                <div key={event.id} className="bg-white rounded-2xl shadow border border-gray-100 flex flex-col overflow-hidden group transition-all">
-                  <div className="relative h-48 w-full overflow-hidden">
-                    <img src={event.image} alt={event.title} className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300" />
-                    <span className="absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 shadow">{event.category}</span>
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Events Content */}
+        {!isLoading && !error && (
+          <AnimatePresence mode="wait">
+            {view === 'grid' ? (
+              <motion.div
+                key="grid"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+              >
+                {filteredEvents.map(event => (
+                  <div key={event.id} className="bg-white rounded-2xl shadow border border-gray-100 flex flex-col overflow-hidden group transition-all">
+                    <div className="relative h-48 w-full overflow-hidden">
+                      <img src={event.image} alt={event.title} className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300" />
+                      <span className="absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 shadow">{event.category}</span>
+                      <button
+                        className={`absolute top-4 right-4 bg-white/80 rounded-full p-2 hover:bg-white shadow transition ${favoritedEvents.includes(event.id) ? 'text-red-500' : ''}`}
+                        onClick={() => setFavoritedEvents(favoritedEvents.includes(event.id) ? favoritedEvents.filter(id => id !== event.id) : [...favoritedEvents, event.id])}
+                        aria-label={favoritedEvents.includes(event.id) ? 'Unfavorite' : 'Favorite'}
+                      >
+                        {favoritedEvents.includes(event.id) ? (
+                          <HeartSolidIcon className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <HeartOutlineIcon className="w-5 h-5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="p-6 flex-1 flex flex-col">
+                      <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                        <CalendarDaysIcon className="w-4 h-4" />
+                        <span>{event.date.replace(/-/g, '/')}</span>
+                        <ClockIcon className="w-4 h-4 ml-4" />
+                        <span>{event.time}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
+                        <MapPinIcon className="w-4 h-4" />
+                        <span>{event.location}</span>
+                      </div>
+                      <h2 className="font-bold text-lg text-gray-900 mb-1">{event.title}</h2>
+                      <p className="text-gray-600 text-sm mb-3 min-h-[48px] line-clamp-2">{event.description}</p>
+                      <div className="flex items-center gap-2 text-xs mb-2">
+                        <span className="text-purple-700 font-semibold">Registration: {event.registration.current}/{event.registration.max}</span>
+                        <span className="text-gray-400">{Math.round((event.registration.current / event.registration.max) * 100)}% Full</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-100 rounded-full mb-4">
+                        <div className="h-2 rounded-full bg-gradient-to-r from-purple-400 to-purple-600" style={{ width: `${Math.round((event.registration.current / event.registration.max) * 100)}%` }}></div>
+                      </div>
+                      {/* Price and Permission Info */}
+                      <div className="flex items-center justify-between mb-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-700">
+                            {event.price > 0 ? `₹${event.price}` : 'Free'}
+                          </span>
+                          {event.permission && (
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                              Permission Required
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {event.club}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-auto">
+                        <button className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-md text-base flex items-center justify-center gap-2 transition" onClick={() => { setSelectedEvent(event); setIsModalOpen(true); }}>Register</button>
+                        <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-md px-3 py-2 flex items-center justify-center transition" title="Add to Calendar"><CalendarIcon className="w-5 h-5" /></button>
+                        <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-md px-3 py-2 flex items-center justify-center transition"><ShareIcon className="w-5 h-5" /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {filteredEvents.length === 0 && (
+                  <div className="col-span-full text-center text-gray-400 py-12">No events found.</div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="calendar"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="p-6"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-lg font-semibold font-poppins">Calendar View</span>
+                  <div className="flex items-center gap-2">
                     <button
-                      className={`absolute top-4 right-4 bg-white/80 rounded-full p-2 hover:bg-white shadow transition ${favoritedEvents.includes(event.id) ? 'text-red-500' : ''}`}
-                      onClick={() => setFavoritedEvents(favoritedEvents.includes(event.id) ? favoritedEvents.filter(id => id !== event.id) : [...favoritedEvents, event.id])}
-                      aria-label={favoritedEvents.includes(event.id) ? 'Unfavorite' : 'Favorite'}
+                      className="p-2 rounded-full hover:bg-gray-100"
+                      onClick={() => {
+                        if (calendarMonth === 0) {
+                          setCalendarMonth(11);
+                          setCalendarYear(calendarYear - 1);
+                        } else {
+                          setCalendarMonth(calendarMonth - 1);
+                        }
+                      }}
                     >
-                      {favoritedEvents.includes(event.id) ? (
-                        <HeartSolidIcon className="w-5 h-5 text-red-500" />
-                      ) : (
-                        <HeartOutlineIcon className="w-5 h-5 text-gray-400" />
-                      )}
+                      <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
+                    <span className="font-medium font-inter">{monthNames[calendarMonth]} {calendarYear}</span>
+                    <button
+                      className="p-2 rounded-full hover:bg-gray-100"
+                      onClick={() => {
+                        if (calendarMonth === 11) {
+                          setCalendarMonth(0);
+                          setCalendarYear(calendarYear + 1);
+                        } else {
+                          setCalendarMonth(calendarMonth + 1);
+                        }
+                      }}
+                    >
+                      <ChevronRightIcon className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="p-6 flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                      <CalendarDaysIcon className="w-4 h-4" />
-                      <span>{event.date.replace(/-/g, '/')}</span>
-                      <ClockIcon className="w-4 h-4 ml-4" />
-                      <span>{event.time}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
-                      <MapPinIcon className="w-4 h-4" />
-                      <span>{event.location}</span>
-                    </div>
-                    <h2 className="font-bold text-lg text-gray-900 mb-1">{event.title}</h2>
-                    <p className="text-gray-600 text-sm mb-3 min-h-[48px] line-clamp-2">{event.description}</p>
-                    <div className="flex items-center gap-2 text-xs mb-2">
-                      <span className="text-purple-700 font-semibold">Registration: {event.registration.current}/{event.registration.max}</span>
-                      <span className="text-gray-400">{Math.round((event.registration.current / event.registration.max) * 100)}% Full</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-100 rounded-full mb-4">
-                      <div className="h-2 rounded-full bg-gradient-to-r from-purple-400 to-purple-600" style={{ width: `${Math.round((event.registration.current / event.registration.max) * 100)}%` }}></div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-auto">
-                      <button className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-md text-base flex items-center justify-center gap-2 transition" onClick={() => { setSelectedEvent(event); setIsModalOpen(true); }}>Register</button>
-                      <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-md px-3 py-2 flex items-center justify-center transition" title="Add to Calendar"><CalendarIcon className="w-5 h-5" /></button>
-                      <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-md px-3 py-2 flex items-center justify-center transition"><ShareIcon className="w-5 h-5" /></button>
-                    </div>
-                  </div>
                 </div>
-              ))}
-              {filteredEvents.length === 0 && (
-                <div className="col-span-full text-center text-gray-400 py-12">No events found.</div>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="calendar"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="p-6"
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-lg font-semibold font-poppins">Calendar View</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="p-2 rounded-full hover:bg-gray-100"
-                    onClick={() => {
-                      if (calendarMonth === 0) {
-                        setCalendarMonth(11);
-                        setCalendarYear(calendarYear - 1);
-                      } else {
-                        setCalendarMonth(calendarMonth - 1);
-                      }
-                    }}
-                  >
-                    <ChevronLeftIcon className="w-5 h-5" />
-                  </button>
-                  <span className="font-medium font-inter">{monthNames[calendarMonth]} {calendarYear}</span>
-                  <button
-                    className="p-2 rounded-full hover:bg-gray-100"
-                    onClick={() => {
-                      if (calendarMonth === 11) {
-                        setCalendarMonth(0);
-                        setCalendarYear(calendarYear + 1);
-                      } else {
-                        setCalendarMonth(calendarMonth + 1);
-                      }
-                    }}
-                  >
-                    <ChevronRightIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              <div className="bg-gray-50 rounded-2xl shadow-inner p-6 overflow-x-auto">
-                <table className="w-full table-fixed text-center select-none border-separate border-spacing-0">
-                  <thead>
-                    <tr className="text-gray-400 text-sm">
-                      <th className="py-3 font-poppins">Sun</th>
-                      <th className="font-poppins">Mon</th>
-                      <th className="font-poppins">Tue</th>
-                      <th className="font-poppins">Wed</th>
-                      <th className="font-poppins">Thu</th>
-                      <th className="font-poppins">Fri</th>
-                      <th className="font-poppins">Sat</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthMatrix.map((week, i) => (
-                      <tr key={i}>
-                        {week.map((day, j) => (
-                          <td key={j} className="h-24 align-top relative px-2 py-2">
-                            {day && (
-                              <div className="flex flex-col items-start gap-2">
-                                <span className="text-gray-700 font-medium font-poppins mb-1 text-base">{day}</span>
-                                <div className="flex flex-col gap-1 w-full">
-                                  {eventsByDate[day] && eventsByDate[day].map((event) => (
-                                    <button
-                                      key={event.id}
-                                      className="block text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-poppins hover:bg-blue-200 transition text-left w-fit max-w-full truncate"
-                                      onClick={() => { setSelectedEvent(event); setIsModalOpen(true); }}
-                                    >
-                                      {event.title.length > 16 ? event.title.slice(0, 15) + '…' : event.title}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                        ))}
+                <div className="bg-gray-50 rounded-2xl shadow-inner p-6 overflow-x-auto">
+                  <table className="w-full table-fixed text-center select-none border-separate border-spacing-0">
+                    <thead>
+                      <tr className="text-gray-400 text-sm">
+                        <th className="py-3 font-poppins">Sun</th>
+                        <th className="font-poppins">Mon</th>
+                        <th className="font-poppins">Tue</th>
+                        <th className="font-poppins">Wed</th>
+                        <th className="font-poppins">Thu</th>
+                        <th className="font-poppins">Fri</th>
+                        <th className="font-poppins">Sat</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                    </thead>
+                    <tbody>
+                      {monthMatrix.map((week, i) => (
+                        <tr key={i}>
+                          {week.map((day, j) => (
+                            <td key={j} className="h-24 align-top relative px-2 py-2">
+                              {day && (
+                                <div className="flex flex-col items-start gap-2">
+                                  <span className="text-gray-700 font-medium font-poppins mb-1 text-base">{day}</span>
+                                  <div className="flex flex-col gap-1 w-full">
+                                    {eventsByDate[day] && eventsByDate[day].map((event) => (
+                                      <button
+                                        key={event.id}
+                                        className="block text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-poppins hover:bg-blue-200 transition text-left w-fit max-w-full truncate"
+                                        onClick={() => { setSelectedEvent(event); setIsModalOpen(true); }}
+                                      >
+                                        {event.title.length > 16 ? event.title.slice(0, 15) + '…' : event.title}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </div>
       {/* Footer */}
       <footer className="mt-10 py-6 text-center text-xs text-gray-400 border-t">
